@@ -25,6 +25,9 @@ formatTicks[list_?ListQ, opts : OptionsPattern[]] := ReplaceAll[list, {
 
 ticks2["Linear" | "Identity", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]] := formatTicks[Charting`ScaledTicks["Identity", "Nice"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
 
+
+ticks2["Linear" | "Identity", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]] := formatTicks[Charting`ScaledTicks["Identity", "Nice"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
+
 (* Special method for handling Dates *)
 ticks2["Date", min : (_?NumericQ | _?DateObjectQ), max : (_?NumericQ | _?DateObjectQ), opts: OptionsPattern[]] := Module[{dateTicks, newMin, newMax},
   dateTicks = Charting`FindDateDivisions[{min, max}, OptionValue[numberOfMajorTicks2]];

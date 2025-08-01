@@ -78,15 +78,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   (* Tick / GridLine functions passed into ggplot FrameTicks -> _ call *)
   With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},
     xTickFunc = If[xScaleType == "Discrete",
-    	Print["xDiscreteLabels: ", xDiscreteLabels];
-    	Print["xScaleType: ", xScaleType];
-      Print[ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions]];
-      ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions]
-      ,
-    	Print["xScaleType: ", xScaleType];
-      Print["min: ", min];
-      Print["max: ", max];
-      Print[ticks2[xScaleType, min, max, tickAndGridLineOptions]];
+      ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions],
       Function[{min, max}, ticks2[xScaleType, min, max, tickAndGridLineOptions]]
     ];
     yTickFunc = If[yScaleType == "Discrete",
@@ -115,10 +107,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
     FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
     FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
-    FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
+    PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
+    (* FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
       {{yTickFunc, False}, {xTickFunc, False}},
       Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]]
-    ],
+    ], *)
     GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
       {xGridLineFunc, yGridLineFunc},
       Lookup[options, GridLines, OptionValue[ggplot, GridLines]]

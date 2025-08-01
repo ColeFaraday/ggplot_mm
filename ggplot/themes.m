@@ -66,8 +66,8 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     Prolog                          -> {}
   ];
   SetOptions[ticks2,
-    numberOfMajorTicks2             -> 5,
-    numberOfMinorTicksPerMajorTick2 -> 4,
+    numberOfMajorTicks2             -> 3,
+    numberOfMinorTicksPerMajorTick2 -> 2,
     majorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
     minorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
     majorTickLength2                -> {0.03, 0.},
