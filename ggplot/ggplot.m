@@ -19,7 +19,13 @@ Attributes[argPatternQ] = {HoldAllComplete};
 argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___]) ...]];
 
 (* Main ggplot method and entry point *)
-Options[ggplot] = DeleteDuplicates[Join[{"data" -> {}}, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
+Options[ggplot] = DeleteDuplicates[Join[{
+  "data" -> {},
+  "categoricalColors" -> Automatic,
+  "sequentialColors" -> {Blue, White, Red},
+  "divergingColors" -> {Blue, White, Red},
+  "continuousColorPalette" -> "auto"
+}, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];

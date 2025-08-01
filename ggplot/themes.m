@@ -26,7 +26,12 @@ ggplotSetTheme[ggplotThemeWhite] := Module[{},
     PlotRange                       -> All,
     PlotRangeClipping               -> True,
     Method                          -> Automatic,
-    Prolog                          -> {}
+    Prolog                          -> {},
+    (* Color palette settings *)
+    "categoricalColors"             -> Automatic,
+    "sequentialColors"              -> {Blue, White, Red},
+    "divergingColors"               -> {Blue, White, Red},
+    "continuousColorPalette"        -> "auto"
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 8,
@@ -63,7 +68,12 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     PlotRange                       -> All,
     PlotRangeClipping               -> True,
     Method                          -> Automatic,
-    Prolog                          -> {}
+    Prolog                          -> {},
+    (* Color palette settings *)
+    "categoricalColors"             -> Automatic,
+    "sequentialColors"              -> {Blue, White, Red},
+    "divergingColors"               -> {Blue, White, Red},
+    "continuousColorPalette        -> "auto"
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 3,
@@ -100,7 +110,12 @@ ggplotSetTheme[ggplotThemeGray] := Module[{},
     PlotRange                       -> All,
     PlotRangeClipping               -> True,
     Method                          -> {"GridLinesInFront" -> True}, (* important to have this for gray background *)
-    Prolog                          -> {RGBColor[0.92, 0.92, 0.92, 1.], Rectangle[Scaled[{0, 0}], Scaled[{1, 1}]]}
+    Prolog                          -> {RGBColor[0.92, 0.92, 0.92, 1.], Rectangle[Scaled[{0, 0}], Scaled[{1, 1}]]},
+    (* Color palette settings *)
+    "categoricalColors"             -> Automatic,
+    "sequentialColors"              -> {Blue, White, Red},
+    "divergingColors"               -> {Blue, White, Red},
+    "continuousColorPalette"        -> "auto"
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 6,

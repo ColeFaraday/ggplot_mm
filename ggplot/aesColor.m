@@ -22,27 +22,42 @@ reconcileAesthetics[dataset_, color_?ColorQ, "color"] := Module[{newDataset},
 ];
 
 (* If a string is passed in, then assume that's the key in the dataset on how to color the data. Then must determine whether the data is discrete or not *)
-reconcileAesthetics[dataset_, key_?StringQ, "color"] /; keyExistsQAll[dataset, key] := Module[{newDataset, data, colorFunc, discreteDataQ, keys, minMax},
+reconcileAesthetics[dataset_, key_?StringQ, "color"] /; keyExistsQAll[dataset, key] := Module[{newDataset, data, colorFunc, discreteDataQ, keys, minMax, categoricalColors, continuousColors},
   newDataset = dataset;
   data = newDataset[[All, key]];
   discreteDataQ = isDiscreteDataQ[data];
   If[discreteDataQ,
     keys = Sort[getDiscreteKeys[data]];
-    colorFunc = Function[AssociationThread[keys, ggplotColorsFunc[Length[keys]]][#]];
+    (* Get categorical colors from theme *)
+    categoricalColors = OptionValue[ggplot, "categoricalColors"];
+    If[categoricalColors === Automatic,
+      categoricalColors = ggplotColorsFunc[Length[keys]],
+      (* If user provided specific colors, use them or cycle through them *)
+      categoricalColors = Take[Flatten[ConstantArray[categoricalColors, Ceiling[Length[keys]/Length[categoricalColors]]]], Length[keys]]
+    ];
+    colorFunc = Function[AssociationThread[keys, categoricalColors][#]];
   ];
   If[!discreteDataQ,
     minMax = getContinuousRange[data];
-    colorFunc = With[{minMax = minMax}, Function[Blend[{Red, Blue}, Rescale[#, minMax]]]];
+    (* Get appropriate continuous color palette from theme *)
+    continuousColors = getContinuousColorPalette[data];
+    colorFunc = With[{minMax = minMax, colors = continuousColors}, Function[Blend[colors, Rescale[#, minMax]]]];
   ];
   newDataset = newDataset // Map[Append[#, "color_aes" -> colorFunc[#[key]]] &];
   newDataset
 ];
 
 (* If a function is passed in, then use it to determine how to color the data assuming the function will be applied "row-wise" to the dataset, as an example "color" -> Function[#somegroup < 10] *)
-reconcileAesthetics[dataset_, func_Function, "color"] := Module[{newDataset, groupedDataset, colors},
+reconcileAesthetics[dataset_, func_Function, "color"] := Module[{newDataset, groupedDataset, colors, categoricalColors},
   newDataset = dataset;
   groupedDataset = GroupBy[dataset, func] // KeySort;
-  colors = ggplotColorsFunc[Length[groupedDataset]];
+  (* Get categorical colors from theme *)
+  categoricalColors = OptionValue[ggplot, "categoricalColors"];
+  If[categoricalColors === Automatic,
+    colors = ggplotColorsFunc[Length[groupedDataset]],
+    (* If user provided specific colors, use them or cycle through them *)
+    colors = Take[Flatten[ConstantArray[categoricalColors, Ceiling[Length[groupedDataset]/Length[categoricalColors]]]], Length[groupedDataset]]
+  ];
   newDataset = groupedDataset // Values // MapIndexed[Function[{group, index}, Map[Function[row, Append[row, "color_aes" -> colors[[First@index]]]], group]]] // Flatten;
   newDataset
 ];
@@ -53,6 +68,27 @@ reconcileAesthetics[dataset_, _, "color"] := Throw[Echo["Unclear on how to deter
 ggplotColorsFunc[1] := {Black};
 ggplotColorsFunc[numberOfSeries_?IntegerQ] /; numberOfSeries > 1 := Drop[LCHColor[0.65, 0.6, #] & /@ (Subdivide[30, 390, numberOfSeries]/390), -1];
 ggplotColorsFunc[___] := ggplotColorsFunc[1];
+
+(* Helper function to determine if data should use diverging color palette *)
+shouldUseDivergingPalette[data_List] := Module[{minVal, maxVal, zeroInRange},
+  {minVal, maxVal} = MinMax[data];
+  zeroInRange = minVal < 0 < maxVal;
+  zeroInRange
+];
+
+(* Helper function to get appropriate continuous color palette from theme *)
+getContinuousColorPalette[data_List] := Module[{paletteType, sequentialColors, divergingColors},
+  paletteType = OptionValue[ggplot, "continuousColorPalette"];
+  sequentialColors = OptionValue[ggplot, "sequentialColors"];
+  divergingColors = OptionValue[ggplot, "divergingColors"];
+  
+  Which[
+    paletteType === "diverging", divergingColors,
+    paletteType === "sequential", sequentialColors,
+    paletteType === "auto" && shouldUseDivergingPalette[data], divergingColors,
+    True, sequentialColors
+  ]
+];
 
 End[];
 
