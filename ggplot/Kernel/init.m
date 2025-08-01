@@ -24,6 +24,7 @@ Get["ggplot`geomHLine`"];
 Get["ggplot`geomVLine`"];
 Get["ggplot`geomHistogram`"];
 Get["ggplot`geomErrorBar`"];
+Get["ggplot`geomErrorBoxes`"];
 
 Get["ggplot`scale`"];
 Get["ggplot`scaleDate`"];
