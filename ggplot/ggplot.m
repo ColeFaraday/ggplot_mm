@@ -13,11 +13,12 @@ ggplot::yInterceptNotGiven  = "No yIntercept value was given for geomHLine";
 ggplot::shapeContinuous     = "A continuous variable can not be mapped to a shape";
 ggplot::shapeCount          = "More than 7 discrete shapes are present, aborting... (this should be fixed)";
 ggplot::errorBarMissingBounds = "geomErrorBar requires all four bounds: xmin, xmax, ymin, ymax";
+ggplot::errorBandMissingBounds = "geomErrorBand requires x, ymin, and ymax";
 
 validDatasetQ[dataset_] := MatchQ[dataset, {_?AssociationQ..}];
 
 Attributes[argPatternQ] = {HoldAllComplete};
-argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___]) ...]];
+argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___]) ...]];
 
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
@@ -80,10 +81,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   histograms  = Cases[heldArgs, geomHistogram[opts___]  :> geomHistogram[opts,  FilterRules[options, Options[geomHistogram]],  "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   errorBars   = Cases[heldArgs, geomErrorBar[opts___]   :> geomErrorBar[opts,   FilterRules[options, Options[geomErrorBar]],   "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   errorBoxes  = Cases[heldArgs, geomErrorBoxes[opts___] :> geomErrorBoxes[opts, FilterRules[options, Options[geomErrorBoxes]], "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
+  errorBands  = Cases[heldArgs, geomErrorBand[opts___]  :> geomErrorBand[opts,  FilterRules[options, Options[geomErrorBand]],  "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   (* columns need a lot more work to sort through *)
   (*columns     = Cases[{geoms}, geomCol[aesthetics__] :> geomCol[dataset, aesthetics, "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];*)
 
-  graphicsPrimitives = {points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes} // Flatten;
+  graphicsPrimitives = {points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes, errorBands} // Flatten;
 
   (* Tick / GridLine functions passed into ggplot FrameTicks -> _ call *)
   With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},
