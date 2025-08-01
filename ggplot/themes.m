@@ -73,7 +73,7 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     "categoricalColors"             -> Automatic,
     "sequentialColors"              -> {Blue, White, Red},
     "divergingColors"               -> {Blue, White, Red},
-    "continuousColorPalette        -> "auto"
+    "continuousColorPalette"        -> "auto"
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 3,
