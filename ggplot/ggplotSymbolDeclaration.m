@@ -22,6 +22,7 @@ geomParityLine::usage   = "TBD";
 geomHLine::usage        = "TBD";
 geomVLine::usage        = "TBD";
 geomHistogram::usage    = "TBD";
+geomErrorBar::usage    = "TBD";
 
 (* Scales *)
 scaleXLinear2::usage   = "TBD";
