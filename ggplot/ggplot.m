@@ -19,7 +19,14 @@ Attributes[argPatternQ] = {HoldAllComplete};
 argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___]) ...]];
 
 (* Main ggplot method and entry point *)
-Options[ggplot] = DeleteDuplicates[Join[{"data" -> {}}, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
+Options[ggplot] = DeleteDuplicates[Join[{
+  "data" -> {},
+  "categoricalColors" -> Automatic,
+  "sequentialColors" -> {Blue, White, Red},
+  "divergingColors" -> {Blue, White, Red},
+  "continuousColorPalette" -> "auto",
+  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}
+}, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
@@ -78,15 +85,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   (* Tick / GridLine functions passed into ggplot FrameTicks -> _ call *)
   With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},
     xTickFunc = If[xScaleType == "Discrete",
-    	Print["xDiscreteLabels: ", xDiscreteLabels];
-    	Print["xScaleType: ", xScaleType];
-      Print[ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions]];
-      ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions]
-      ,
-    	Print["xScaleType: ", xScaleType];
-      Print["min: ", min];
-      Print["max: ", max];
-      Print[ticks2[xScaleType, min, max, tickAndGridLineOptions]];
+      ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions],
       Function[{min, max}, ticks2[xScaleType, min, max, tickAndGridLineOptions]]
     ];
     yTickFunc = If[yScaleType == "Discrete",
@@ -115,10 +114,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
     FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
     FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
-    FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
+    PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
+    (* FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
       {{yTickFunc, False}, {xTickFunc, False}},
       Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]]
-    ],
+    ], *)
     GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
       {xGridLineFunc, yGridLineFunc},
       Lookup[options, GridLines, OptionValue[ggplot, GridLines]]

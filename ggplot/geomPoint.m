@@ -26,11 +26,28 @@ geomPoint[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infin
   newDataset = reconcileAesthetics[newDataset, OptionValue["shape"], "shape"];
 
   (*Grab the point data and for each Point apply the correct aesthetic*)
-  output = newDataset // Map[{
-    #["color_aes"],
-    #["alpha_aes"],
-    Inset[Style[#["shape_aes"], #["size_aes"]], {OptionValue["xScaleFunc"][#[OptionValue["x"]]], OptionValue["yScaleFunc"][#[OptionValue["y"]]]}]
-  } &];
+  output = newDataset // Map[Function[row,
+    Module[{shapeObj, colorDir, alphaDir, sizeDir, pos, processedShape},
+      shapeObj = row["shape_aes"];
+      colorDir = row["color_aes"];
+      alphaDir = row["alpha_aes"];
+      sizeDir = row["size_aes"];
+      pos = {OptionValue["xScaleFunc"][row[OptionValue["x"]]], OptionValue["yScaleFunc"][row[OptionValue["y"]]]};
+      
+      (* Check if shape has placeholder variables (from FilledMarkers[] or similar) *)
+      If[StringContainsQ[ToString[shapeObj], "ggplotColorPlaceholder"],
+        (* For markers with placeholders, substitute the actual values *)
+        processedShape = shapeObj /. {
+          ggplotColorPlaceholder -> colorDir,
+          ggplotAlphaPlaceholder -> alphaDir,
+          ggplotSizePlaceholder -> sizeDir
+        };
+        {Directive[], Directive[], Translate[processedShape, pos]},
+        (* For simple string/symbol shapes, use the original approach *)
+        {colorDir, alphaDir, Inset[Style[shapeObj, sizeDir], pos]}
+      ]
+    ]
+  ]];
 
   (* Grouping data but doing a GeometricTransformation on similar Inset values to speed up the plotting once inside Graphics *)
   output = output // GroupBy[Function[{#[[1]], #[[2]], Inset[#[[3, 1]], {0, 0}]}] -> Function[#[[3, 2]]]] // Normal // Map[{#[[1, 1]], #[[1, 2]], GeometricTransformation[#[[1, 3]], List /@ #[[2]]]} &];

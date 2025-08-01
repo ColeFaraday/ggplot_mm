@@ -22,13 +22,16 @@ reconcileAesthetics[dataset_, shape_Symbol, "shape"] := Module[{newDataset},
 ];
 
 (* If a string is passed in, then assume that's the key in the dataset on how to shape the data. Then must determine whether the data is discrete or not *)
-reconcileAesthetics[dataset_, key_?StringQ, "shape"] /; keyExistsQAll[dataset, key] := Module[{newDataset, data, shapeFunc, discreteDataQ, keys, minMax},
+reconcileAesthetics[dataset_, key_?StringQ, "shape"] /; keyExistsQAll[dataset, key] := Module[{newDataset, data, shapeFunc, discreteDataQ, keys, minMax, categoricalShapes},
   newDataset = dataset;
   data = newDataset[[All, key]];
   discreteDataQ = isDiscreteDataQ[data];
   If[discreteDataQ,
     keys = Sort[getDiscreteKeys[data]];
-    shapeFunc = Function[AssociationThread[keys, shapesFunc[Length[keys]]]];
+    categoricalShapes = OptionValue[ggplot, "categoricalShapes"];
+    (* Repeat shapes if we need more than available *)
+    categoricalShapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[keys]/Length[categoricalShapes]]]], Length[keys]];
+    shapeFunc = Function[AssociationThread[keys, categoricalShapes][#]];
   ];
   If[!discreteDataQ,
     minMax = getContinuousRange[data];
@@ -39,16 +42,17 @@ reconcileAesthetics[dataset_, key_?StringQ, "shape"] /; keyExistsQAll[dataset, k
 ];
 
 (* If a function is passed in, then use it to determine how to shape the data assuming the function will be applied "row-wise" to the dataset, as an example "shape" -> Function[#somegroup < 10] *)
-reconcileAesthetics[dataset_, func_Function, "shape"] := Module[{newDataset, groupedDataset, shapes},
+reconcileAesthetics[dataset_, func_Function, "shape"] := Module[{newDataset, groupedDataset, shapes, categoricalShapes},
   newDataset = dataset;
   groupedDataset = GroupBy[dataset, func] // KeySort;
-  shapes = shapesFunc[Length[groupedDataset]];
+  categoricalShapes = OptionValue[ggplot, "categoricalShapes"];
+  (* Repeat shapes if we need more than available *)
+  shapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[groupedDataset]/Length[categoricalShapes]]]], Length[groupedDataset]];
   newDataset = groupedDataset // Values // MapIndexed[Function[{group, index}, Map[Function[row, Append[row, "shape_aes" -> shapes[[First@index]]]], group]]] // Flatten;
   newDataset
 ];
 
-shapesFunc[numberOfSeries_?IntegerQ] /; Between[numberOfSeries, {1, 7}] := {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}[[1;;numberOfSeries]];
-shapesFunc[numberOfSeries_?IntegerQ] /; numberOfSeries > 7 := (Message[ggplot::shapeCount]; Throw[Null];)
+reconcileAesthetics[dataset_, _, "shape"] := Throw[Echo["Unclear on how to determine the shape"];Null];
 
 End[];
 

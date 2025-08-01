@@ -26,7 +26,14 @@ ggplotSetTheme[ggplotThemeWhite] := Module[{},
     PlotRange                       -> All,
     PlotRangeClipping               -> True,
     Method                          -> Automatic,
-    Prolog                          -> {}
+    Prolog                          -> {},
+    (* Color palette settings *)
+    "categoricalColors"             -> Automatic,
+    "sequentialColors"              -> {Blue, White, Red},
+    "divergingColors"               -> {Blue, White, Red},
+    "continuousColorPalette"        -> "auto",
+    (* Shape palette settings *)
+    "categoricalShapes"             -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 8,
@@ -63,11 +70,18 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     PlotRange                       -> All,
     PlotRangeClipping               -> True,
     Method                          -> Automatic,
-    Prolog                          -> {}
+    Prolog                          -> {},
+    (* Color palette settings *)
+    "categoricalColors"             -> (RGBColor[#] & /@ {"#000000", "#DF536B", "#2297E6", "#61D04F", "#F5C710","#FA00F6", "#DF536B"}), (* edited version of R4 colors *)
+    "sequentialColors"              -> {Blue, White, Red},
+    "divergingColors"               -> {Blue, White, Red},
+    "continuousColorPalette"        -> "auto",
+    (* Shape palette settings *)
+    "categoricalShapes"             -> FilledMarkers[]
   ];
   SetOptions[ticks2,
-    numberOfMajorTicks2             -> 5,
-    numberOfMinorTicksPerMajorTick2 -> 4,
+    numberOfMajorTicks2             -> 3,
+    numberOfMinorTicksPerMajorTick2 -> 2,
     majorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
     minorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
     majorTickLength2                -> {0.03, 0.},
@@ -100,7 +114,14 @@ ggplotSetTheme[ggplotThemeGray] := Module[{},
     PlotRange                       -> All,
     PlotRangeClipping               -> True,
     Method                          -> {"GridLinesInFront" -> True}, (* important to have this for gray background *)
-    Prolog                          -> {RGBColor[0.92, 0.92, 0.92, 1.], Rectangle[Scaled[{0, 0}], Scaled[{1, 1}]]}
+    Prolog                          -> {RGBColor[0.92, 0.92, 0.92, 1.], Rectangle[Scaled[{0, 0}], Scaled[{1, 1}]]},
+    (* Color palette settings *)
+    "categoricalColors"             -> Automatic,
+    "sequentialColors"              -> {Blue, White, Red},
+    "divergingColors"               -> {Blue, White, Red},
+    "continuousColorPalette"        -> "auto",
+    (* Shape palette settings *)
+    "categoricalShapes"             -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 6,
@@ -118,6 +139,14 @@ ggplotSetTheme[ggplotThemeGray] := Module[{},
   Options[formatGridLines] = Options[ticks2];
   $ggplotTheme = ggplotThemeGray;
 ];
+
+filledMarker[name_String, size_ : 4] := ResourceFunction["PolygonMarker"][name, Offset[ggplotSizePlaceholder/2], {FaceForm[ggplotColorPlaceholder], ggplotAlphaPlaceholder}, ImagePadding -> 6];
+
+FilledMarkers[size_ : 4] := filledMarker[#, size]& /@ {  "Circle", "Diamond", "Square", "Triangle",  "FivePointedStarThick", "Pentagon", "TripleCross", "SixPointedStar","EightfoldCross", "Y", "DiagonalFourPointedStar"};
+
+openMarker[name_String, size_ : 4] := ResourceFunction["PolygonMarker"][name, Offset[ggplotSizePlaceholder], {EdgeForm[{ggplotColorPlaceholder, JoinForm["Round"], AbsoluteThickness[1], ggplotAlphaPlaceholder}], FaceForm[White]}, ImagePadding -> 6];
+
+OpenMarkers[size_ : 4] := (openMarker[#, size]& /@ {  "Circle", "Diamond", "Square", "Triangle", "FivePointedStarThick", "Pentagon","TripleCross", "SixPointedStar","EightfoldCross", "Y", "DiagonalFourPointedStar"} /. {p : _Disk | _Polygon :> {FaceForm[], p}}); (* the replacement makes the interior transparent. See https://mathematica.stackexchange.com/questions/219573/open-plot-markers-without-background*)
 
 End[];
 
