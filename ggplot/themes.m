@@ -77,7 +77,7 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     "divergingColors"               -> {Blue, White, Red},
     "continuousColorPalette"        -> "auto",
     (* Shape palette settings *)
-    "categoricalShapes"             -> FilledMarkers[][[1]]
+    "categoricalShapes"             -> FilledMarkers[]
   ];
   SetOptions[ticks2,
     numberOfMajorTicks2             -> 3,
@@ -140,13 +140,13 @@ ggplotSetTheme[ggplotThemeGray] := Module[{},
   $ggplotTheme = ggplotThemeGray;
 ];
 
-filledMarker[name_String, size_ : 4] := ResourceFunction["PolygonMarker"][name, Offset[size], { Dynamic@FaceForm[CurrentValue["Color"]]}, ImagePadding -> 6];
+filledMarker[name_String, size_ : 4] := ResourceFunction["PolygonMarker"][name, Offset[ggplotSizePlaceholder/2], {FaceForm[ggplotColorPlaceholder], ggplotAlphaPlaceholder}, ImagePadding -> 6];
 
-FilledMarkers[size_ : 4] := {filledMarker[#, size]& /@ {  "Circle", "Diamond", "Square", "Triangle",  "FivePointedStarThick", "Pentagon", "TripleCross", "SixPointedStar","EightfoldCross", "Y", "DiagonalFourPointedStar"}};
+FilledMarkers[size_ : 4] := filledMarker[#, size]& /@ {  "Circle", "Diamond", "Square", "Triangle",  "FivePointedStarThick", "Pentagon", "TripleCross", "SixPointedStar","EightfoldCross", "Y", "DiagonalFourPointedStar"};
 
-openMarker[name_String, size_ : 4] := ResourceFunction["PolygonMarker"][name, Offset[size], {Dynamic@ EdgeForm[{CurrentValue["Color"], JoinForm["Round"], AbsoluteThickness[1], Opacity[0.5]}], FaceForm[White]}, ImagePadding -> 6];
+openMarker[name_String, size_ : 4] := ResourceFunction["PolygonMarker"][name, Offset[ggplotSizePlaceholder], {EdgeForm[{ggplotColorPlaceholder, JoinForm["Round"], AbsoluteThickness[1], ggplotAlphaPlaceholder}], FaceForm[White]}, ImagePadding -> 6];
 
-OpenMarkers[size_ : 4] := ({openMarker[#, size]& /@ {  "Circle", "Diamond", "Square", "Triangle", "FivePointedStarThick", "Pentagon","TripleCross", "SixPointedStar","EightfoldCross", "Y", "DiagonalFourPointedStar"}} /. {p : _Disk | _Polygon :> {FaceForm[], p}}); (* the replacement makes the interior transparent. See https://mathematica.stackexchange.com/questions/219573/open-plot-markers-without-background*)
+OpenMarkers[size_ : 4] := (openMarker[#, size]& /@ {  "Circle", "Diamond", "Square", "Triangle", "FivePointedStarThick", "Pentagon","TripleCross", "SixPointedStar","EightfoldCross", "Y", "DiagonalFourPointedStar"} /. {p : _Disk | _Polygon :> {FaceForm[], p}}); (* the replacement makes the interior transparent. See https://mathematica.stackexchange.com/questions/219573/open-plot-markers-without-background*)
 
 End[];
 
