@@ -7,6 +7,7 @@ BeginPackage["ggplot`"];
 
 ggplot::usage             = "TBD";
 ggplotThemeWhite::usage   = "TBD";
+ggplotThemePub::usage   = "TBD";
 ggplotThemeGray::usage    = "TBD";
 ggplotSetTheme::usage     = "TBD";
 $ggplotTheme::usage       = "TBD";

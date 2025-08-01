@@ -23,7 +23,7 @@ formatTicks[list_?ListQ, opts : OptionsPattern[]] := ReplaceAll[list, {
 
 (* Publicly accessbile tick functions *)
 
-ticks2["Linear" | "Identity", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]] := formatTicks[Charting`ScaledTicks["Identity"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
+ticks2["Linear" | "Identity", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]] := formatTicks[Charting`ScaledTicks["Identity", "Nice"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
 
 (* Special method for handling Dates *)
 ticks2["Date", min : (_?NumericQ | _?DateObjectQ), max : (_?NumericQ | _?DateObjectQ), opts: OptionsPattern[]] := Module[{dateTicks, newMin, newMax},
@@ -36,9 +36,9 @@ ticks2["Date", min : (_?NumericQ | _?DateObjectQ), max : (_?NumericQ | _?DateObj
 ];
 
 (* Log, Log10, Log2, or Reverse *)
-ticks2["Log", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]]   := formatTicks[Charting`ScaledTicks["Log"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
-ticks2["Log10", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]] := formatTicks[Charting`ScaledTicks["Log10"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
-ticks2["Log2", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]]  := formatTicks[Charting`ScaledTicks["Log2"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
+ticks2["Log", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]]   := formatTicks[Charting`ScaledTicks["Log", "Nice"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
+ticks2["Log10", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]] := formatTicks[Charting`ScaledTicks["Log10", "Nice"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
+ticks2["Log2", min_?NumericQ, max_?NumericQ, opts : OptionsPattern[]]  := formatTicks[Charting`ScaledTicks["Log2", "Nice"][min, max, {OptionValue[numberOfMajorTicks2], OptionValue[numberOfMinorTicksPerMajorTick2]}], opts];
 
 (* Special method for handling discrete ticks2 (i.e. things like strings) *)
 ticks2["Discrete", lbls_?ListQ, opts : OptionsPattern[]] := Module[{numberOfLabels, majorTicks, minorTicks, allTicks},

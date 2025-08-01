@@ -33,8 +33,8 @@ ggplotSetTheme[ggplotThemeWhite] := Module[{},
     numberOfMinorTicksPerMajorTick2 -> 1,
     majorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
     minorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
-    majorTickLength2                -> {0., 0.},
-    minorTickLength2                -> {0., 0.},
+    majorTickLength2                -> {0.03, 0.},
+    minorTickLength2                -> {0.012, 0.},
     DateTicksFormat                 -> Automatic,
     majorGridLineStyle2             -> Directive[GrayLevel[0.8], Thickness[0.002]],
     minorGridLineStyle2             -> Directive[GrayLevel[0.9], Thickness[0.001]]
@@ -43,6 +43,44 @@ ggplotSetTheme[ggplotThemeWhite] := Module[{},
   Options[formatTicks] = Options[ticks2];
   Options[formatGridLines] = Options[ticks2];
   $ggplotTheme = ggplotThemeWhite;
+];
+
+
+ggplotSetTheme[ggplotThemePub] := Module[{},
+  SetOptions[ggplot,
+    ImageSize                       -> 300,
+    AspectRatio                     -> 7/10,
+    Frame                           -> True,
+    Axes                            -> False,
+    ImageMargins                    -> Automatic,
+    LabelStyle                      -> Directive[12, FontFamily -> "Arial"],
+    FrameLabel                      -> Automatic,
+    FrameStyle                      -> Directive[Black, Thickness[0.0008`]],
+    FrameTicksStyle                 -> Directive[Black, Opacity[1]],
+    FrameTicks                      -> Automatic,
+    GridLines                       -> None,
+    Background                      -> White,
+    PlotRange                       -> All,
+    PlotRangeClipping               -> True,
+    Method                          -> Automatic,
+    Prolog                          -> {}
+  ];
+  SetOptions[ticks2,
+    numberOfMajorTicks2             -> 5,
+    numberOfMinorTicksPerMajorTick2 -> 4,
+    majorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
+    minorTickStyle2                 -> Directive[GrayLevel[0], Thickness[0.001]],
+    majorTickLength2                -> {0.03, 0.},
+    minorTickLength2                -> {0.012, 0.},
+    DateTicksFormat                 -> Automatic,
+    majorGridLineStyle2             -> Directive[GrayLevel[0.8], Thickness[0.002]],
+    minorGridLineStyle2             -> Directive[GrayLevel[0.9], Thickness[0.001]]
+  ];
+  Options[gridLines2] = Options[ticks2];
+  Options[formatTicks] = Options[ticks2];
+  Options[formatGridLines] = Options[ticks2];
+  $ggplotTheme = ggplotThemePub;
+  Print["Set theme to ggplotThemePub"]
 ];
 
 ggplotSetTheme[ggplotThemeGray] := Module[{},
