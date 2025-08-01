@@ -70,7 +70,7 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     Method                          -> Automatic,
     Prolog                          -> {},
     (* Color palette settings *)
-    "categoricalColors"             -> Automatic,
+    "categoricalColors"             -> RGBColor[#] & /@ {"#000000", "#DF536B", "#2297E6", "#61D04F", "#F5C710","#FA00F6", "#DF536B" }, (* edited version of R4 colors *)
     "sequentialColors"              -> {Blue, White, Red},
     "divergingColors"               -> {Blue, White, Red},
     "continuousColorPalette"        -> "auto"
