@@ -171,6 +171,34 @@ ggplotSetTheme[themeName] := Module[{},
 ]
 ```
 
+#### Shape Configuration
+
+Themes now support configurable shape palettes through the `"categoricalShapes"` option:
+
+```wolfram
+SetOptions[ggplot, 
+  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", ...}
+]
+```
+
+**Key Features:**
+- **Dynamic Length**: No longer limited to 7 shapes - use as many as needed
+- **Automatic Cycling**: When there are more groups than shapes, the system automatically cycles through the available shapes
+- **Theme-Specific**: Each theme can define its own default shape palette
+- **Customizable**: Users can override shape palettes using `SetOptions[ggplot, "categoricalShapes" -> {...}]`
+
+**Example:**
+```wolfram
+(* Set a custom shape palette *)
+SetOptions[ggplot, "categoricalShapes" -> {
+  "\[EmptyCircle]", "\[EmptySquare]", "\[EmptyUpTriangle]", 
+  "\[EmptyDiamond]", "\[Times]", "+"
+}];
+
+(* This will use the shapes in order, cycling if needed *)
+ggplot[data, geomPoint["x" -> "xvar", "y" -> "yvar", "shape" -> "groupvar"]]
+```
+
 ---
 
 ## How to Extend the Library

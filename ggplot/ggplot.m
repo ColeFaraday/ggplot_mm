@@ -24,7 +24,8 @@ Options[ggplot] = DeleteDuplicates[Join[{
   "categoricalColors" -> Automatic,
   "sequentialColors" -> {Blue, White, Red},
   "divergingColors" -> {Blue, White, Red},
-  "continuousColorPalette" -> "auto"
+  "continuousColorPalette" -> "auto",
+  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}
 }, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
