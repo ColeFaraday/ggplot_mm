@@ -45,9 +45,17 @@ geomDensity2DFilled[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _),
                 xVals = Map[OptionValue["xScaleFunc"], xVals];
                 yVals = Map[OptionValue["yScaleFunc"], yVals];
                 
-                (* Determine data ranges *)
+                (* Determine data ranges and expand them for natural density falloff *)
                 xRange = MinMax[xVals];
                 yRange = MinMax[yVals];
+                
+                (* Expand ranges by 20% on each side for natural density tails *)
+                xSpan = xRange[[2]] - xRange[[1]];
+                ySpan = yRange[[2]] - yRange[[1]];
+                xRangeExpanded = {xRange[[1]] - 0.2*xSpan, xRange[[2]] + 0.2*xSpan};
+                yRangeExpanded = {yRange[[1]] - 0.2*ySpan, yRange[[2]] + 0.2*ySpan};
+
+								Print[xRangeExpanded];
                 
                 (* Create kernel density estimation *)
                 kde = SmoothKernelDistribution[Transpose[{xVals, yVals}], 
@@ -57,8 +65,8 @@ geomDensity2DFilled[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _),
                 
                 (* Generate filled contour plot and extract polygons *)
                 contourGraphics = ContourPlot[PDF[kde, {x, y}], 
-                  {x, xRange[[1]], xRange[[2]]}, 
-                  {y, yRange[[1]], yRange[[2]]},
+                  {x, xRangeExpanded[[1]], xRangeExpanded[[2]]}, 
+                  {y, yRangeExpanded[[1]], yRangeExpanded[[2]]},
                   Contours -> OptionValue["levels"],
                   ContourShading -> True,
                   ContourLines -> False,
@@ -66,10 +74,11 @@ geomDensity2DFilled[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _),
                   Frame -> False,
                   Axes -> False
                 ];
-								Print[contourGraphics];
                 
                 (* Extract polygon primitives from the contour plot *)
                 primitives = FullForm[contourGraphics][[1,1]];
+
+								Print[contourGraphics];
                 
                 (* Return the polygons *)
                 Sequence @@ {primitives}
