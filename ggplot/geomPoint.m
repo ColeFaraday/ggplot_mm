@@ -51,6 +51,8 @@ geomPoint[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infin
 
   (* Grouping data but doing a GeometricTransformation on similar Inset values to speed up the plotting once inside Graphics *)
   output = output // GroupBy[Function[{#[[1]], #[[2]], Inset[#[[3, 1]], {0, 0}]}] -> Function[#[[3, 2]]]] // Normal // Map[{#[[1, 1]], #[[1, 2]], GeometricTransformation[#[[1, 3]], List /@ #[[2]]]} &];
+  Print[output];
+
   output
 
 ];

@@ -25,6 +25,7 @@ geomHistogram::usage    = "TBD";
 geomErrorBar::usage    = "TBD";
 geomErrorBoxes::usage    = "TBD";
 geomErrorBand::usage    = "TBD";
+geomDensity2DFilled::usage    = "TBD";
 
 (* Scales *)
 scaleXLinear2::usage   = "TBD";
