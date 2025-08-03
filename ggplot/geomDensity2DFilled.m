@@ -55,7 +55,6 @@ geomDensity2DFilled[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _),
                 xRangeExpanded = {xRange[[1]] - 0.2*xSpan, xRange[[2]] + 0.2*xSpan};
                 yRangeExpanded = {yRange[[1]] - 0.2*ySpan, yRange[[2]] + 0.2*ySpan};
 
-								Print[xRangeExpanded];
                 
                 (* Create kernel density estimation *)
                 kde = SmoothKernelDistribution[Transpose[{xVals, yVals}], 
@@ -78,7 +77,6 @@ geomDensity2DFilled[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _),
                 (* Extract polygon primitives from the contour plot *)
                 primitives = FullForm[contourGraphics][[1,1]];
 
-								Print[contourGraphics];
                 
                 (* Return the polygons *)
                 Sequence @@ {primitives}

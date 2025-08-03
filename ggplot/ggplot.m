@@ -17,6 +17,88 @@ ggplot::errorBandMissingBounds = "geomErrorBand requires x, ymin, and ymax";
 
 validDatasetQ[dataset_] := MatchQ[dataset, {_?AssociationQ..}];
 
+(* Legend positioning function *)
+defaultOffset = {0.05, 0.05};
+GetScaledCoord["BottomLeft", offset_ : defaultOffset] := {{0 + offset[[1]], 0 + offset[[2]]}, {0, 0}};
+GetScaledCoord["BottomRight", offset_ : defaultOffset] := {{1 - offset[[1]], 0 + offset[[2]]}, {1, 0}};
+GetScaledCoord["TopLeft", offset_ : defaultOffset] := {{0 + offset[[1]], 1 - offset[[2]]}, {0, 1}};
+GetScaledCoord["TopRight", offset_ : defaultOffset] := {{1 - offset[[1]], 1 - offset[[2]]}, {1, 1}};
+GetScaledCoord["MiddleLeft", offset_ : defaultOffset] := {{0 + offset[[1]], 0.5 + offset[[2]]}, {0, 0.5}};
+GetScaledCoord["MiddleRight", offset_ : defaultOffset] := {{1 - offset[[1]], 0.5 + offset[[2]]}, {1, 0.5}};
+GetScaledCoord["TopMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 1 - offset[[2]]}, {0.5, 1}};
+GetScaledCoord["BottomMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 0 + offset[[2]]}, {0.5, 0}};
+
+(* Outer legend positioning functions - for legends outside the plot area *)
+GetScaledCoord["OuterBottomLeft", offset_ : defaultOffset] := {{0 - offset[[1]], 0 - offset[[2]]}, {1, 0}};
+GetScaledCoord["OuterBottomRight", offset_ : defaultOffset] := {{1 + offset[[1]], 0 - offset[[2]]}, {0, 0}};
+GetScaledCoord["OuterTopLeft", offset_ : defaultOffset] := {{0 - offset[[1]], 1 + offset[[2]]}, {1, 1}};
+GetScaledCoord["OuterTopRight", offset_ : defaultOffset] := {{1 + offset[[1]], 1 + offset[[2]]}, {0, 1}};
+GetScaledCoord["OuterMiddleLeft", offset_ : defaultOffset] := {{0 - offset[[1]], 0.5 + offset[[2]]}, {1, 0.5}};
+GetScaledCoord["OuterMiddleRight", offset_ : defaultOffset] := {{1 + offset[[1]], 0.5 + offset[[2]]}, {0, 0.5}};
+GetScaledCoord["OuterTopMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 1 + offset[[2]]}, {0.5, 0}};
+GetScaledCoord["OuterBottomMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 0 - offset[[2]]}, {0.5, 1}};
+
+(* Convert legend info to built-in legend functions *)
+convertLegendInfo[legendInfo_] := Module[{legendItems},
+  If[Length[legendInfo] == 0, Return[{}]];
+  
+  legendItems = KeyValueMap[Function[{aesthetic, data},
+    Which[
+      (* Handle combined aesthetics (multiple aesthetics for same variable) *)
+      KeyExistsQ[data, "aesthetics"],
+      createCombinedLegend[data],
+      
+      (* Single aesthetic legends *)
+      data["aesthetic"] === "color" && data["type"] === "discrete",
+      LineLegend[data["values"], data["labels"], LegendLabel -> data["title"]],
+      
+      data["aesthetic"] === "color" && data["type"] === "continuous",
+      (* For continuous color, use BarLegend *)
+      BarLegend[{data["palette"], data["range"]}, LegendLabel -> data["title"]],
+      
+      data["aesthetic"] === "shape" && data["type"] === "discrete",
+      PointLegend[ConstantArray[Black, Length[data["labels"]]], data["labels"], LegendLabel -> data["title"], LegendMarkers->(data[["values"]]/.{ggplotSizePlaceholder->12, ggplotAlphaPlaceholder->Opacity[1.], ggplotColorPlaceholder->Black})],
+      
+      data["aesthetic"] === "size" && data["type"] === "discrete",
+      PointLegend[ConstantArray[Graphics[{Black, Disk[]}], Length[data["labels"]]], data["labels"], 
+        LegendLabel -> data["title"], LegendMarkerSize -> data["values"]],
+      
+      True,
+      (* Fallback to SwatchLegend *)
+      SwatchLegend[data["values"], data["labels"], LegendLabel -> data["title"]]
+    ]
+  ], legendInfo];
+  
+  legendItems
+];
+
+(* Create a combined legend for multiple aesthetics mapping to the same variable *)
+createCombinedLegend[data_] := Module[{
+  aesthetics, labels, colors, shapes, sizes, alphas, markers, legendColors
+  },
+  aesthetics = data["aesthetics"];
+  labels = data["labels"];
+  
+  (* Extract values for each aesthetic *)
+  colors = Lookup[data["values"], "color", ConstantArray[Black, Length[labels]]];
+  shapes = Lookup[data["values"], "shape", ConstantArray[FilledMarkers[][[1]], Length[labels]]];
+  sizes = Lookup[data["values"], "size", ConstantArray[12, Length[labels]]];
+  alphas = Lookup[data["values"], "alpha", ConstantArray[1., Length[labels]]];
+
+  (* Create markers that combine shape, size, and alpha *)
+  markers = MapThread[Function[{shape, size, alpha, color},
+    shape /. {ggplotSizePlaceholder -> size, ggplotAlphaPlaceholder -> Opacity[alpha], ggplotColorPlaceholder -> color}
+  ], {shapes, sizes, alphas, colors}];
+  
+  (* Use colors as the legend colors and shapes/sizes as markers *)
+  PointLegend[colors, labels, 
+    LegendLabel -> data["title"], 
+    LegendMarkers -> markers,
+    LegendMarkerSize -> {50, 45},
+    LegendLayout -> (Column[Row /@ #, Spacings -> -2] &)
+  ]
+];
+
 Attributes[argPatternQ] = {HoldAllComplete};
 argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___]) ...]];
 
@@ -27,13 +109,16 @@ Options[ggplot] = DeleteDuplicates[Join[{
   "sequentialColors" -> {Blue, White, Red},
   "divergingColors" -> {Blue, White, Red},
   "continuousColorPalette" -> "auto",
-  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}
+  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"},
+  "showLegend" -> Automatic,
+  "legendPosition" -> "right",
+  "legendSpacing" -> 0.15
 }, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
-ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, graphic},
+ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic},
   
   heldArgs = Hold[args];
   options = Cases[heldArgs, _Rule, 1];
@@ -109,33 +194,75 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     ];
   ];
 
+  (* Create legend if needed *)
+  showLegend = Lookup[options, "showLegend", OptionValue[ggplot, "showLegend"]];
+  legendInfo = {};
+  If[showLegend === Automatic || showLegend === True,
+    legendInfo = extractLegendInfo[heldArgs, dataset, options];
+  ];
 
-  graphic = Graphics[graphicsPrimitives,
-    FrameLabel        -> frameLabel,
-    PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
-    ImageSize         -> Lookup[options, ImageSize, OptionValue[ggplot, ImageSize]],
-    AspectRatio       -> Lookup[options, AspectRatio, OptionValue[ggplot, AspectRatio]],
-    Frame             -> Lookup[options, Frame, OptionValue[ggplot, Frame]],
-    Axes              -> Lookup[options, Axes, OptionValue[ggplot, Axes]],
-    LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
-    FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
-    FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
-    PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
-    (* FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
-      {{yTickFunc, False}, {xTickFunc, False}},
-      Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]]
-    ], *)
-    GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
-      {xGridLineFunc, yGridLineFunc},
-      Lookup[options, GridLines, OptionValue[ggplot, GridLines]]
+  graphic = If[Length[legendInfo] > 0,
+    Legended[
+      Graphics[graphicsPrimitives,
+        FrameLabel        -> frameLabel,
+        PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
+        ImageSize         -> Lookup[options, ImageSize, OptionValue[ggplot, ImageSize]],
+        AspectRatio       -> Lookup[options, AspectRatio, OptionValue[ggplot, AspectRatio]],
+        Frame             -> Lookup[options, Frame, OptionValue[ggplot, Frame]],
+        Axes              -> Lookup[options, Axes, OptionValue[ggplot, Axes]],
+        LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
+        FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
+        FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
+        PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
+        (* FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
+          {{yTickFunc, False}, {xTickFunc, False}},
+          Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]]
+        ], *)
+        GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
+          {xGridLineFunc, yGridLineFunc},
+          Lookup[options, GridLines, OptionValue[ggplot, GridLines]]
+        ],
+        GridLinesStyle    -> Automatic, (* shouldn't need this but do for some reason *)
+        Background        -> Lookup[options, Background, OptionValue[ggplot, Background]],
+        ImageMargins      -> Lookup[options, ImageMargins, OptionValue[ggplot, ImageMargins]],
+        PlotRangeClipping -> Lookup[options, PlotRangeClipping, OptionValue[ggplot, PlotRangeClipping]],
+        Prolog            -> Lookup[options, Prolog, OptionValue[ggplot, Prolog]],
+        Method            -> Lookup[options, Method, OptionValue[ggplot, Method]],
+        FilterRules[{options}, Options[ListLinePlot]]
+      ],
+      Placed[
+        Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
+        GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
+      ]
     ],
-    GridLinesStyle    -> Automatic, (* shouldn't need this but do for some reason *)
-    Background        -> Lookup[options, Background, OptionValue[ggplot, Background]],
-    ImageMargins      -> Lookup[options, ImageMargins, OptionValue[ggplot, ImageMargins]],
-    PlotRangeClipping -> Lookup[options, PlotRangeClipping, OptionValue[ggplot, PlotRangeClipping]],
-    Prolog            -> Lookup[options, Prolog, OptionValue[ggplot, Prolog]],
-    Method            -> Lookup[options, Method, OptionValue[ggplot, Method]],
-    FilterRules[{options}, Options[ListLinePlot]]
+    (* No legend case *)
+    Graphics[graphicsPrimitives,
+      FrameLabel        -> frameLabel,
+      PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
+      ImageSize         -> Lookup[options, ImageSize, OptionValue[ggplot, ImageSize]],
+      AspectRatio       -> Lookup[options, AspectRatio, OptionValue[ggplot, AspectRatio]],
+      Frame             -> Lookup[options, Frame, OptionValue[ggplot, Frame]],
+      Axes              -> Lookup[options, Axes, OptionValue[ggplot, Axes]],
+      LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
+      FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
+      FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
+      PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
+      (* FrameTicks        -> If[Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]] === Automatic,
+        {{yTickFunc, False}, {xTickFunc, False}},
+        Lookup[options, FrameTicks, OptionValue[ggplot, FrameTicks]]
+      ], *)
+      GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
+        {xGridLineFunc, yGridLineFunc},
+        Lookup[options, GridLines, OptionValue[ggplot, GridLines]]
+      ],
+      GridLinesStyle    -> Automatic, (* shouldn't need this but do for some reason *)
+      Background        -> Lookup[options, Background, OptionValue[ggplot, Background]],
+      ImageMargins      -> Lookup[options, ImageMargins, OptionValue[ggplot, ImageMargins]],
+      PlotRangeClipping -> Lookup[options, PlotRangeClipping, OptionValue[ggplot, PlotRangeClipping]],
+      Prolog            -> Lookup[options, Prolog, OptionValue[ggplot, Prolog]],
+      Method            -> Lookup[options, Method, OptionValue[ggplot, Method]],
+      FilterRules[{options}, Options[ListLinePlot]]
+    ]
   ];
 
   graphic
