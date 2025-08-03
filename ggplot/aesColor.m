@@ -48,17 +48,33 @@ reconcileAesthetics[dataset_, key_?StringQ, "color"] /; keyExistsQAll[dataset, k
 ];
 
 (* If a function is passed in, then use it to determine how to color the data assuming the function will be applied "row-wise" to the dataset, as an example "color" -> Function[#somegroup < 10] *)
-reconcileAesthetics[dataset_, func_Function, "color"] := Module[{newDataset, groupedDataset, colors, categoricalColors},
+reconcileAesthetics[dataset_, func_Function, "color"] := Module[{newDataset, data, discreteDataQ, groupedDataset, colors, categoricalColors, colorFunc, minMax, continuousColors},
   newDataset = dataset;
-  groupedDataset = GroupBy[dataset, func] // KeySort;
-  (* Get categorical colors from theme *)
-  categoricalColors = OptionValue[ggplot, "categoricalColors"];
-  If[categoricalColors === Automatic,
-    colors = ggplotColorsFunc[Length[groupedDataset]],
-    (* If user provided specific colors, use them or cycle through them *)
-    colors = Take[Flatten[ConstantArray[categoricalColors, Ceiling[Length[groupedDataset]/Length[categoricalColors]]]], Length[groupedDataset]]
+  
+  (* Extract the data that results from applying the function *)
+  data = Map[func, dataset];
+  discreteDataQ = isDiscreteDataQ[data];
+  
+  If[discreteDataQ,
+    (* Handle as discrete/categorical data *)
+    groupedDataset = GroupBy[dataset, func] // KeySort;
+    (* Get categorical colors from theme *)
+    categoricalColors = OptionValue[ggplot, "categoricalColors"];
+    If[categoricalColors === Automatic,
+      colors = ggplotColorsFunc[Length[groupedDataset]],
+      (* If user provided specific colors, use them or cycle through them *)
+      colors = Take[Flatten[ConstantArray[categoricalColors, Ceiling[Length[groupedDataset]/Length[categoricalColors]]]], Length[groupedDataset]]
+    ];
+    newDataset = groupedDataset // Values // MapIndexed[Function[{group, index}, Map[Function[row, Append[row, "color_aes" -> colors[[First@index]]]], group]]] // Flatten;
+  ,
+    (* Handle as continuous data *)
+    minMax = getContinuousRange[data];
+    (* Get appropriate continuous color palette from theme *)
+    continuousColors = getContinuousColorPalette[data];
+    colorFunc = With[{minMax = minMax, colors = continuousColors}, Function[Blend[colors, Rescale[#, minMax]]]];
+    newDataset = newDataset // Map[Append[#, "color_aes" -> colorFunc[func[#]]] &];
   ];
-  newDataset = groupedDataset // Values // MapIndexed[Function[{group, index}, Map[Function[row, Append[row, "color_aes" -> colors[[First@index]]]], group]]] // Flatten;
+  
   newDataset
 ];
 
