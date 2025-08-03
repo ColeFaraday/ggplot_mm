@@ -134,8 +134,15 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
   ];
   
   (* Check if this is discrete or continuous mapping *)
-  isDiscrete = Length[uniqueValues] <= 20 && AllTrue[uniqueValues[[All, "color_aes"]], ColorQ]; (* Assume discrete if <= 20 unique colors *)
-  isContinuous = !isDiscrete;
+  (* Use the same logic as reconcileAesthetics to determine if the original data is discrete *)
+  Module[{originalData},
+    originalData = If[StringQ[colorMapping],
+      dataset[[All, colorMapping]],
+      colorMapping /@ dataset
+    ];
+    isDiscrete = isDiscreteDataQ[originalData];
+    isContinuous = !isDiscrete;
+  ];
   
   If[isDiscrete,
     (* Create discrete legend with actual colors from reconcileAesthetics *)
@@ -158,14 +165,18 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
       <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> colors, "aesthetic" -> "color"|>
     ],
     (* For continuous mapping, extract range and palette information *)
-    Module[{dataRange, colorRange},
+    Module[{dataRange, colorPalette},
       dataRange = If[StringQ[colorMapping],
         MinMax[reconciledDataset[[All, colorMapping]]],
         MinMax[colorMapping /@ dataset]
       ];
-      colorRange = {Min[uniqueValues[[All, "color_aes"]]], Max[uniqueValues[[All, "color_aes"]]]};
+      (* Get the color palette used for this continuous mapping *)
+      colorPalette = getContinuousColorPalette[If[StringQ[colorMapping],
+        reconciledDataset[[All, colorMapping]],
+        colorMapping /@ dataset
+      ]];
       
-      <|"type" -> "continuous", "title" -> legendTitle, "range" -> dataRange, "palette" -> colorRange, "aesthetic" -> "color"|>
+      <|"type" -> "continuous", "title" -> legendTitle, "range" -> dataRange, "palette" -> colorPalette, "aesthetic" -> "color"|>
     ]
   ]
 ];
