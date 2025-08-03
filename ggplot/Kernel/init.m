@@ -23,6 +23,10 @@ Get["ggplot`geomParityLine`"];
 Get["ggplot`geomHLine`"];
 Get["ggplot`geomVLine`"];
 Get["ggplot`geomHistogram`"];
+Get["ggplot`geomErrorBar`"];
+Get["ggplot`geomErrorBoxes`"];
+Get["ggplot`geomErrorBand`"];
+Get["ggplot`geomDensity2DFilled`"];
 
 Get["ggplot`scale`"];
 Get["ggplot`scaleDate`"];
