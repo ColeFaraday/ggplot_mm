@@ -32,7 +32,7 @@ facetWrap[opts : OptionsPattern[]] := Module[{variable, ncol, nrow, scales, stri
 createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   variable, ncol, nrow, scales, stripPosition, uniqueValues, nPanels, 
   gridDims, panels, arrangedPanels, stripLabels, xScaleType, yScaleType, 
-  xScaleFunc, yScaleFunc
+  xScaleFunc, yScaleFunc, legendInfo, showLegend, finalGrid, globalDataset
   },
   
   variable = facetInfo["variable"];
@@ -42,7 +42,6 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   stripPosition = facetInfo["stripPosition"];
   
   Print["Debug - Faceting by variable: ", variable];
-  Print["Debug - Available keys in dataset: ", Keys[First[dataset]]];
   Print["Debug - X variable: ", Lookup[options, "x", "NOT FOUND"]];
   Print["Debug - Y variable: ", Lookup[options, "y", "NOT FOUND"]];
   
@@ -71,26 +70,59 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   xScaleFunc = Function[Identity[#]];
   yScaleFunc = Function[Identity[#]];
   
+  (* PRE-COMPUTE GLOBAL AESTHETIC MAPPINGS for consistency across panels *)
+  Print["Debug - Pre-computing global aesthetic mappings..."];
+  
+  (* Extract aesthetic mappings from heldArgs and create globally reconciled dataset *)
+  globalDataset = Module[{workingDataset, colorMapping, shapeMapping, sizeMapping, alphaMapping},
+    workingDataset = dataset;
+    
+    (* Find aesthetic mappings *)
+    colorMapping = Cases[heldArgs, ("color" -> key_) :> key, {0, Infinity}];
+    shapeMapping = Cases[heldArgs, ("shape" -> key_) :> key, {0, Infinity}];
+    sizeMapping = Cases[heldArgs, ("size" -> key_) :> key, {0, Infinity}];
+    alphaMapping = Cases[heldArgs, ("alpha" -> key_) :> key, {0, Infinity}];
+    
+    Print["Debug - Found mappings - color: ", colorMapping, ", shape: ", shapeMapping];
+    
+    (* Apply reconcileAesthetics to the complete dataset for each aesthetic *)
+    If[Length[colorMapping] > 0,
+      Print["Debug - Reconciling color for complete dataset"];
+      workingDataset = reconcileAesthetics[workingDataset, First[colorMapping], "color"];
+    ];
+    
+    If[Length[shapeMapping] > 0,
+      Print["Debug - Reconciling shape for complete dataset"];
+      workingDataset = reconcileAesthetics[workingDataset, First[shapeMapping], "shape"];
+    ];
+    
+    If[Length[sizeMapping] > 0,
+      workingDataset = reconcileAesthetics[workingDataset, First[sizeMapping], "size"];
+    ];
+    
+    If[Length[alphaMapping] > 0,
+      workingDataset = reconcileAesthetics[workingDataset, First[alphaMapping], "alpha"];
+    ];
+    
+    Print["Debug - Available keys after reconciliation: ", Keys[First[workingDataset]]];
+    
+    (* Return the reconciled dataset *)
+    workingDataset
+  ];
+  
   (* Create individual panels *)
   panels = Map[Function[value,
     Module[{subsetData, points, lines, paths, smooths, histograms, primitives, modifiedOptions},
       Print["Debug - Creating panel for value: ", value];
       
-      (* Filter data for this facet *)
-      subsetData = Select[dataset, #[variable] === value &];
+      (* Filter data for this facet using the globally reconciled dataset *)
+      subsetData = Select[globalDataset, #[variable] === value &];
       Print["Debug - Subset data rows: ", Length[subsetData]];
-      Print["Debug - First few rows of subset: ", Take[subsetData, UpTo[2]]];
       
       (* Create geoms with subset data - properly override the data parameter *)
-      Print["Debug - Processing geoms from heldArgs: ", heldArgs];
       
       (* Create modified options with subset data *)
       modifiedOptions = Normal@Association[options, {"data" -> subsetData}];
-
-	 		Print["Debug - options: ", options];
-			Print["Debug - Modified options: ", modifiedOptions];
-
-			Print["Debug - options = modified options : ", options === modifiedOptions];
 			
 			(* Extract geoms from heldArgs and apply modified options *)
       points = Cases[heldArgs, geomPoint[opts___] :> geomPoint[opts, FilterRules[modifiedOptions, Options[geomPoint]], "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
@@ -117,30 +149,16 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   ], uniqueValues];
   
   (* Debug: Print information *)
-  Print["Debug - Number of unique values: ", Length[uniqueValues]];
+  Print["Debug - ", Length[uniqueValues], " facet panels created"];
   Print["Debug - Unique values: ", uniqueValues];
-  Print["Debug - Number of panels created: ", Length[panels]];
-  Print["Debug - Panel types: ", Map[Head, panels]];
-
-	Print["Debug - panels: ", panels];
   
   (* Create strip labels *)
   stripLabels = Map[Function[value, Style[ToString[value], 12] ], uniqueValues];
   
-  Print["Debug - Number of strip labels created: ", Length[stripLabels]];
-  Print["Debug - Strip label types: ", Map[Head, stripLabels]];
-  
-  (* Debug: Check dimensions before transpose *)
-  Print["Debug - panels length: ", Length[panels]];
-  Print["Debug - stripLabels length: ", Length[stripLabels]];
-  
   (* Arrange panels in grid with labels *)
-  (* Fix the transpose issue by using MapThread instead *)
   arrangedPanels = MapThread[Function[{panel, label},
     Labeled[panel, label, Top]
   ], {panels, stripLabels}];
-  
-  Print["Debug - Number of arranged panels: ", Length[arrangedPanels]];
   
   (* Pad to fill grid if needed *)
   While[Length[arrangedPanels] < gridDims[[1]] * gridDims[[2]],
@@ -150,8 +168,30 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   (* Reshape into grid *)
   arrangedPanels = ArrayReshape[arrangedPanels, gridDims];
   
-  (* Create final grid *)
-  Grid[arrangedPanels, Spacings -> {1, 1}]
+  (* Create the initial grid *)
+  finalGrid = Grid[arrangedPanels, Spacings -> {1, 1}];
+  
+  (* Create legend if needed *)
+  showLegend = Lookup[options, "showLegend", True]; (* Default to True for faceted plots *)
+  legendInfo = {};
+  If[showLegend === Automatic || showLegend === True,
+    Print["Debug - Extracting legend info from global dataset"];
+    legendInfo = extractLegendInfo[heldArgs, globalDataset, options];
+    Print["Debug - Legend info length: ", Length[legendInfo]];
+  ];
+  
+  (* Apply legend to the final grid if needed *)
+  If[Length[legendInfo] > 0,
+    Legended[
+      finalGrid,
+      Placed[
+        Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
+        GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
+      ]
+    ],
+    (* No legend case *)
+    finalGrid
+  ]
 ];
 
 End[];

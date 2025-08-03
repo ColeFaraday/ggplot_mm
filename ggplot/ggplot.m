@@ -128,16 +128,13 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   (* Check for faceting *)
   facetInfo = Cases[heldArgs, facetWrap[opts___] :> facetWrap[opts], {0, Infinity}];
-  Print["Debug ggplot - facetInfo found: ", facetInfo];
-  Print["Debug ggplot - facetInfo length: ", Length[facetInfo]];
+  Print["Debug ggplot - faceting requested: ", Length[facetInfo] > 0];
   
   (* If faceting is requested, handle it specially *)
   If[Length[facetInfo] > 0,
     Module[{facetSpec},
       facetSpec = First[facetInfo];
-      Print["Debug ggplot - facetSpec: ", facetSpec];
-      Print["Debug ggplot - dataset: ", Take[dataset, UpTo[3]]]; (* Show first 3 rows *)
-      Print["Debug ggplot - heldArgs: ", heldArgs];
+      Print["Debug ggplot - creating faceted plot"];
       
       (* Create faceted graphics *)
       Return[createFacetedGraphics[dataset, facetSpec, heldArgs, options]]

@@ -10,7 +10,10 @@ Begin["`Private`"];
 (* Default function if shape is not being used as an aesthetic *)
 reconcileAesthetics[dataset_, Null, "shape"] := Module[{newDataset},
   newDataset = dataset;
-  newDataset = newDataset // Map[Append[#, "shape_aes" -> "\[FilledCircle]"] &];
+  (* Only add shape_aes if it doesn't already exist (for faceting compatibility) *)
+  If[!KeyExistsQ[First[newDataset], "shape_aes"],
+    newDataset = newDataset // Map[Append[#, "shape_aes" -> "\[FilledCircle]"] &]
+  ];
   newDataset
 ];
 
@@ -24,6 +27,12 @@ reconcileAesthetics[dataset_, shape_Symbol, "shape"] := Module[{newDataset},
 (* If a string is passed in, then assume that's the key in the dataset on how to shape the data. Then must determine whether the data is discrete or not *)
 reconcileAesthetics[dataset_, key_?StringQ, "shape"] /; keyExistsQAll[dataset, key] := Module[{newDataset, data, shapeFunc, discreteDataQ, keys, minMax, categoricalShapes},
   newDataset = dataset;
+  
+  (* If shape_aes already exists, don't override it (for faceting compatibility) *)
+  If[KeyExistsQ[First[newDataset], "shape_aes"],
+    Return[newDataset]
+  ];
+  
   data = newDataset[[All, key]];
   discreteDataQ = isDiscreteDataQ[data];
   If[discreteDataQ,
