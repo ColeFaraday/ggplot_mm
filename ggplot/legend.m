@@ -86,6 +86,24 @@ combineLegendAesthetics[aestheticsForVariable_] := Module[{
   combinedEntry
 ];
 
+(* Create a title from a function by converting it to string *)
+createFunctionTitle[func_] := Module[{funcString},
+  funcString = ToString[func];
+  (* Clean up the string representation *)
+  funcString = StringReplace[funcString, {
+    "Function[" -> "",
+    "]" -> "",
+    "Slot[1]" -> "#",
+    "Slot[" ~~ n:NumberString ~~ "]" :> "#" <> n,
+    "#1" -> "#"
+  }];
+  (* Limit length to keep legend readable *)
+  If[StringLength[funcString] > 40,
+    StringTake[funcString, 37] <> "...",
+    funcString
+  ]
+];
+
 (* Extract color legend information *)
 extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, colorFunctionMappings, colorKey, data, discreteDataQ, keys, colors, categoricalColors, groupedDataset, functionValues},
   
@@ -127,8 +145,9 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
   
   (* Handle function-based mappings *)
   If[Length[colorFunctionMappings] > 0,
-    Module[{func, groupedData, functionKeys, functionColors},
+    Module[{func, groupedData, functionKeys, functionColors, functionTitle},
       func = First[colorFunctionMappings];
+      functionTitle = createFunctionTitle[func];
       
       (* Apply the function to dataset to get the values it produces *)
       functionValues = func /@ dataset;
@@ -148,9 +167,9 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
       discreteDataQ = isDiscreteDataQ[functionValues];
       
       Return[If[discreteDataQ,
-        <|"type" -> "discrete", "title" -> "color", "labels" -> functionKeys, "values" -> functionColors, "aesthetic" -> "color"|>,
+        <|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionColors, "aesthetic" -> "color"|>,
         (* For continuous function output, treat as continuous color scale *)
-        <|"type" -> "continuous", "title" -> "color", "range" -> MinMax[functionValues], "palette" -> getContinuousColorPalette[functionValues], "aesthetic" -> "color"|>
+        <|"type" -> "continuous", "title" -> functionTitle, "range" -> MinMax[functionValues], "palette" -> getContinuousColorPalette[functionValues], "aesthetic" -> "color"|>
       ]]
     ]
   ];
@@ -160,64 +179,140 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
 ];
 
 (* Extract shape legend information *)
-extractShapeLegendInfo[heldArgs_, dataset_, options_] := Module[{shapeMappings, shapeKey, data, discreteDataQ, keys, shapes, categoricalShapes},
+extractShapeLegendInfo[heldArgs_, dataset_, options_] := Module[{shapeMappings, shapeFunctionMappings, shapeKey, data, discreteDataQ, keys, shapes, categoricalShapes, functionValues},
   shapeMappings = Cases[heldArgs, ("shape" -> key_?StringQ) :> key, {0, Infinity}];
+  shapeFunctionMappings = Cases[heldArgs, ("shape" -> func_Function) :> func, {0, Infinity}];
   
-  If[Length[shapeMappings] == 0, Return[None]];
+  If[Length[shapeMappings] == 0 && Length[shapeFunctionMappings] == 0, Return[None]];
   
-  shapeKey = First[shapeMappings];
-  If[!keyExistsQAll[dataset, shapeKey], Return[None]];
+  (* Handle string-based mappings *)
+  If[Length[shapeMappings] > 0,
+    shapeKey = First[shapeMappings];
+    If[!keyExistsQAll[dataset, shapeKey], Return[None]];
+    
+    data = dataset[[All, shapeKey]];
+    discreteDataQ = isDiscreteDataQ[data];
+    
+    Return[If[discreteDataQ,
+      keys = Sort[getDiscreteKeys[data]];
+      categoricalShapes = Lookup[options, "categoricalShapes", OptionValue[ggplot, "categoricalShapes"]];
+      shapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[keys]/Length[categoricalShapes]]]], Length[keys]];
+      <|"type" -> "discrete", "title" -> shapeKey, "labels" -> keys, "values" -> shapes, "aesthetic" -> "shape"|>,
+      None (* Shapes are only discrete *)
+    ]]
+  ];
   
-  data = dataset[[All, shapeKey]];
-  discreteDataQ = isDiscreteDataQ[data];
+  (* Handle function-based mappings *)
+  If[Length[shapeFunctionMappings] > 0,
+    Module[{func, groupedData, functionKeys, functionShapes, functionTitle},
+      func = First[shapeFunctionMappings];
+      functionTitle = createFunctionTitle[func];
+      
+      functionValues = func /@ dataset;
+      discreteDataQ = isDiscreteDataQ[functionValues];
+      
+      If[discreteDataQ,
+        groupedData = GroupBy[dataset, func] // KeySort;
+        functionKeys = Keys[groupedData];
+        categoricalShapes = Lookup[options, "categoricalShapes", OptionValue[ggplot, "categoricalShapes"]];
+        functionShapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[functionKeys]/Length[categoricalShapes]]]], Length[functionKeys]];
+        Return[<|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionShapes, "aesthetic" -> "shape"|>],
+        Return[None] (* Shapes are only discrete *)
+      ]
+    ]
+  ];
   
-  If[discreteDataQ,
-    keys = Sort[getDiscreteKeys[data]];
-    categoricalShapes = Lookup[options, "categoricalShapes", OptionValue[ggplot, "categoricalShapes"]];
-    shapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[keys]/Length[categoricalShapes]]]], Length[keys]];
-    <|"type" -> "discrete", "title" -> shapeKey, "labels" -> keys, "values" -> shapes, "aesthetic" -> "shape"|>,
-    None (* Shapes are only discrete *)
-  ]
+  None
 ];
 
 (* Extract size legend information *)
-extractSizeLegendInfo[heldArgs_, dataset_, options_] := Module[{sizeMappings, sizeKey, data, discreteDataQ, keys, sizes},
+extractSizeLegendInfo[heldArgs_, dataset_, options_] := Module[{sizeMappings, sizeFunctionMappings, sizeKey, data, discreteDataQ, keys, sizes, functionValues},
   sizeMappings = Cases[heldArgs, ("size" -> key_?StringQ) :> key, {0, Infinity}];
+  sizeFunctionMappings = Cases[heldArgs, ("size" -> func_Function) :> func, {0, Infinity}];
   
-  If[Length[sizeMappings] == 0, Return[None]];
+  If[Length[sizeMappings] == 0 && Length[sizeFunctionMappings] == 0, Return[None]];
   
-  sizeKey = First[sizeMappings];
-  If[!keyExistsQAll[dataset, sizeKey], Return[None]];
+  (* Handle string-based mappings *)
+  If[Length[sizeMappings] > 0,
+    sizeKey = First[sizeMappings];
+    If[!keyExistsQAll[dataset, sizeKey], Return[None]];
+    
+    data = dataset[[All, sizeKey]];
+    discreteDataQ = isDiscreteDataQ[data];
+    
+    Return[If[discreteDataQ,
+      keys = Sort[getDiscreteKeys[data]];
+      sizes = Rescale[Range[Length[keys]], {1, Length[keys]}, {8, 16}]; (* Default size range *)
+      <|"type" -> "discrete", "title" -> sizeKey, "labels" -> keys, "values" -> sizes, "aesthetic" -> "size"|>,
+      <|"type" -> "continuous", "title" -> sizeKey, "range" -> MinMax[data], "sizeRange" -> {8, 16}, "aesthetic" -> "size"|>
+    ]]
+  ];
   
-  data = dataset[[All, sizeKey]];
-  discreteDataQ = isDiscreteDataQ[data];
+  (* Handle function-based mappings *)
+  If[Length[sizeFunctionMappings] > 0,
+    Module[{func, groupedData, functionKeys, functionSizes, functionTitle},
+      func = First[sizeFunctionMappings];
+      functionTitle = createFunctionTitle[func];
+      
+      functionValues = func /@ dataset;
+      discreteDataQ = isDiscreteDataQ[functionValues];
+      
+      Return[If[discreteDataQ,
+        groupedData = GroupBy[dataset, func] // KeySort;
+        functionKeys = Keys[groupedData];
+        functionSizes = Rescale[Range[Length[functionKeys]], {1, Length[functionKeys]}, {8, 16}];
+        <|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionSizes, "aesthetic" -> "size"|>,
+        <|"type" -> "continuous", "title" -> functionTitle, "range" -> MinMax[functionValues], "sizeRange" -> {8, 16}, "aesthetic" -> "size"|>
+      ]]
+    ]
+  ];
   
-  If[discreteDataQ,
-    keys = Sort[getDiscreteKeys[data]];
-    sizes = Rescale[Range[Length[keys]], {1, Length[keys]}, {8, 16}]; (* Default size range *)
-    <|"type" -> "discrete", "title" -> sizeKey, "labels" -> keys, "values" -> sizes, "aesthetic" -> "size"|>,
-    <|"type" -> "continuous", "title" -> sizeKey, "range" -> MinMax[data], "sizeRange" -> {8, 16}, "aesthetic" -> "size"|>
-  ]
+  None
 ];
 
 (* Extract alpha legend information *)
-extractAlphaLegendInfo[heldArgs_, dataset_, options_] := Module[{alphaMappings, alphaKey, data, discreteDataQ, keys, alphas},
+extractAlphaLegendInfo[heldArgs_, dataset_, options_] := Module[{alphaMappings, alphaFunctionMappings, alphaKey, data, discreteDataQ, keys, alphas, functionValues},
   alphaMappings = Cases[heldArgs, ("alpha" -> key_?StringQ) :> key, {0, Infinity}];
+  alphaFunctionMappings = Cases[heldArgs, ("alpha" -> func_Function) :> func, {0, Infinity}];
   
-  If[Length[alphaMappings] == 0, Return[None]];
+  If[Length[alphaMappings] == 0 && Length[alphaFunctionMappings] == 0, Return[None]];
   
-  alphaKey = First[alphaMappings];
-  If[!keyExistsQAll[dataset, alphaKey], Return[None]];
+  (* Handle string-based mappings *)
+  If[Length[alphaMappings] > 0,
+    alphaKey = First[alphaMappings];
+    If[!keyExistsQAll[dataset, alphaKey], Return[None]];
+    
+    data = dataset[[All, alphaKey]];
+    discreteDataQ = isDiscreteDataQ[data];
+    
+    Return[If[discreteDataQ,
+      keys = Sort[getDiscreteKeys[data]];
+      alphas = Rescale[Range[Length[keys]], {1, Length[keys]}, {0.3, 1.0}]; (* Default alpha range *)
+      <|"type" -> "discrete", "title" -> alphaKey, "labels" -> keys, "values" -> alphas, "aesthetic" -> "alpha"|>,
+      <|"type" -> "continuous", "title" -> alphaKey, "range" -> MinMax[data], "alphaRange" -> {0.3, 1.0}, "aesthetic" -> "alpha"|>
+    ]]
+  ];
   
-  data = dataset[[All, alphaKey]];
-  discreteDataQ = isDiscreteDataQ[data];
+  (* Handle function-based mappings *)
+  If[Length[alphaFunctionMappings] > 0,
+    Module[{func, groupedData, functionKeys, functionAlphas, functionTitle},
+      func = First[alphaFunctionMappings];
+      functionTitle = createFunctionTitle[func];
+      
+      functionValues = func /@ dataset;
+      discreteDataQ = isDiscreteDataQ[functionValues];
+      
+      Return[If[discreteDataQ,
+        groupedData = GroupBy[dataset, func] // KeySort;
+        functionKeys = Keys[groupedData];
+        functionAlphas = Rescale[Range[Length[functionKeys]], {1, Length[functionKeys]}, {0.3, 1.0}];
+        <|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionAlphas, "aesthetic" -> "alpha"|>,
+        <|"type" -> "continuous", "title" -> functionTitle, "range" -> MinMax[functionValues], "alphaRange" -> {0.3, 1.0}, "aesthetic" -> "alpha"|>
+      ]]
+    ]
+  ];
   
-  If[discreteDataQ,
-    keys = Sort[getDiscreteKeys[data]];
-    alphas = Rescale[Range[Length[keys]], {1, Length[keys]}, {0.3, 1.0}]; (* Default alpha range *)
-    <|"type" -> "discrete", "title" -> alphaKey, "labels" -> keys, "values" -> alphas, "aesthetic" -> "alpha"|>,
-    <|"type" -> "continuous", "title" -> alphaKey, "range" -> MinMax[data], "alphaRange" -> {0.3, 1.0}, "aesthetic" -> "alpha"|>
-  ]
+  None
 ];
 
 End[];

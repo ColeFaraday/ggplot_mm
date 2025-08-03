@@ -231,7 +231,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
         FilterRules[{options}, Options[ListLinePlot]]
       ],
       Placed[
-        Column[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
+        Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
         GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
       ]
     ],
