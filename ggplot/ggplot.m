@@ -86,8 +86,8 @@ createCombinedLegend[data_] := Module[{
   alphas = Lookup[data["values"], "alpha", ConstantArray[1., Length[labels]]];
 
   (* Create markers that combine shape, size, and alpha *)
-  markers = MapThread[Function[{shape, size, alpha, colors},
-    shape /. {ggplotSizePlaceholder -> size, ggplotAlphaPlaceholder -> Opacity[alpha], ggplotColorPlaceholder -> colors}
+  markers = MapThread[Function[{shape, size, alpha, color},
+    shape /. {ggplotSizePlaceholder -> size, ggplotAlphaPlaceholder -> Opacity[alpha], ggplotColorPlaceholder -> color}
   ], {shapes, sizes, alphas, colors}];
   
   (* Use colors as the legend colors and shapes/sizes as markers *)

@@ -72,9 +72,9 @@ ggplotSetTheme[ggplotThemePub] := Module[{},
     Method                          -> Automatic,
     Prolog                          -> {},
     (* Color palette settings *)
-    "categoricalColors"             -> (RGBColor[#] & /@ {"#000000", "#DF536B", "#2297E6", "#61D04F", "#F5C710","#FA00F6", "#DF536B","#E69F00","#7A68A6"}), (* edited version of R4 colors *)
-    "sequentialColors"              -> (RGBColor[#] & /@ {"#ccece6","#99d8c9","#66c2a4","#41ae76","#238b45","#006d2c","#00441b"}),
-    "divergingColors"               -> (RGBColor[#] & /@ {"#b2182b","#d6604d","#f4a582","#fddbc7","#f7f7f7","#d1e5f0","#92c5de","#4393c3","#2166ac"}),
+    "categoricalColors"             -> (RGBColor[#] & /@ {"#000000", "#DF536B", "#2297E6", "#61D04F", "#F5C710","#FA00F6", "#E69F00","#7A68A6"}), (* edited version of R4 colors *)
+    "sequentialColors"              -> (RGBColor[#] & /@ {"#ccece6","#99d8c9","#66c2a4","#41ae76","#238b45","#006d2c","#00441b", "#111111", "#222222"}),
+    "divergingColors"               -> (RGBColor[#] & /@ {"#b2182b","#d6604d","#f4a582","#fddbc7","#f7f7f7","#d1e5f0","#92c5de","#4393c3","#2166ac", "#111111", "#222222"}),
     "continuousColorPalette"        -> "auto",
     (* Shape palette settings *)
     "categoricalShapes"             -> FilledMarkers[]
