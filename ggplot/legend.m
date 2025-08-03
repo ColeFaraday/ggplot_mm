@@ -1,7 +1,6 @@
 (* Mathematica Source File *)
-(* Created by Mathematica Plugin for IntelliJ IDEA *)
-(* :Author: andrewyule *)
-(* :Date: 2020-05-10 *)
+(* :Author: colefaraday *)
+(* :Date: 2025-08-02 *)
 
 BeginPackage["ggplot`"];
 
@@ -11,44 +10,57 @@ Begin["`Private`"];
 
 (* Extract legend information from aesthetic mappings *)
 extractLegendInfo[heldArgs_, dataset_, options_] := Module[{legendInfo, colorLegend, shapeLegend, sizeLegend, alphaLegend, groupedLegends},
+  Print["[DEBUG] Extracting legend info..."];
   legendInfo = <||>;
   
   (* Extract individual legend info for each aesthetic *)
   colorLegend = extractColorLegendInfo[heldArgs, dataset, options];
+  Print["[DEBUG] Color legend result: ", colorLegend];
   If[colorLegend =!= None, legendInfo["color"] = colorLegend];
   
   shapeLegend = extractShapeLegendInfo[heldArgs, dataset, options];
+  Print["[DEBUG] Shape legend result: ", shapeLegend];
   If[shapeLegend =!= None, legendInfo["shape"] = shapeLegend];
   
   sizeLegend = extractSizeLegendInfo[heldArgs, dataset, options];
+  Print["[DEBUG] Size legend result: ", sizeLegend];
   If[sizeLegend =!= None, legendInfo["size"] = sizeLegend];
   
   alphaLegend = extractAlphaLegendInfo[heldArgs, dataset, options];
+  Print["[DEBUG] Alpha legend result: ", alphaLegend];
   If[alphaLegend =!= None, legendInfo["alpha"] = alphaLegend];
   
   
   (* Group legends by their mapped variable (title) to combine multiple aesthetics *)
   groupedLegends = combineLegendsForSameVariable[legendInfo];
+  Print["[DEBUG] Final legend info: ", groupedLegends];
   
   groupedLegends
 ];
 
 (* Combine legends that map to the same variable into single combined legends *)
 combineLegendsForSameVariable[legendInfo_] := Module[{groupedByVariable, combinedLegends},
+  Print["[DEBUG] Combining legends for same variable, input: ", legendInfo];
+  
   (* Group legend entries by their mapped variable (title) *)
   groupedByVariable = GroupBy[Normal[legendInfo], #[[2]]["title"] &];
+  Print["[DEBUG] Grouped by variable: ", groupedByVariable];
 
 	
   (* For each variable, combine all aesthetics that map to it *)
   combinedLegends = Association[KeyValueMap[Function[{variable, aestheticsForVariable},
+    Print["[DEBUG] Processing variable: ", variable, " with aesthetics: ", aestheticsForVariable];
     (* If only one aesthetic maps to this variable, keep it as is *)
     If[Length[aestheticsForVariable] == 1,
+      Print["[DEBUG] Single aesthetic for ", variable, ", keeping as is"];
       First[aestheticsForVariable],
       (* Otherwise, combine multiple aesthetics into one legend *)
+      Print["[DEBUG] Multiple aesthetics for ", variable, ", combining..."];
       variable -> combineLegendAesthetics[aestheticsForVariable]
     ]
   ], groupedByVariable]];
 
+  Print["[DEBUG] Final combined legends: ", combinedLegends];
   
   combinedLegends
 ];
@@ -57,19 +69,25 @@ combineLegendsForSameVariable[legendInfo_] := Module[{groupedByVariable, combine
 combineLegendAesthetics[aestheticsForVariable_] := Module[{
   firstEntry, combinedEntry, aesthetics, labels, isAllDiscrete, isAllContinuous
   },
+  Print["[DEBUG] combineLegendAesthetics called with: ", aestheticsForVariable];
+  
   (* Get the first entry as the base *)
   firstEntry = First[aestheticsForVariable][[2]];
+  Print["[DEBUG] First entry: ", firstEntry];
 	
   (* Extract all aesthetic names *)
   aesthetics = #[[1]] & /@ aestheticsForVariable;
+  Print["[DEBUG] Aesthetic names: ", aesthetics];
 
 	
   (* Check if all entries are the same type *)
   isAllDiscrete = AllTrue[#[[2]]["type"] & /@ aestheticsForVariable, # === "discrete" &];
   isAllContinuous = AllTrue[#[[2]]["type"] & /@ aestheticsForVariable, # === "continuous" &];
+  Print["[DEBUG] All discrete? ", isAllDiscrete, ", All continuous? ", isAllContinuous];
   
   (* Only combine if they're all the same type and have the same labels *)
   If[isAllDiscrete && SameQ @@ (#[[2]]["labels"] & /@ aestheticsForVariable),
+    Print["[DEBUG] Creating combined discrete legend"];
     (* Create combined discrete legend *)
     combinedEntry = <|
       "type" -> "discrete",
@@ -77,11 +95,14 @@ combineLegendAesthetics[aestheticsForVariable_] := Module[{
       "labels" -> firstEntry["labels"],
       "aesthetics" -> aesthetics,
       "values" -> Association[#[[1]] -> #[[2]]["values"] & /@ aestheticsForVariable]
-    |>,
+    |>;
+    Print["[DEBUG] Combined entry values: ", combinedEntry["values"]],
     (* For now, if types don't match or labels differ, keep the first one *)
+    Print["[DEBUG] Types don't match or labels differ, keeping first entry"];
     combinedEntry = firstEntry
   ];
 
+  Print["[DEBUG] Final combined entry: ", combinedEntry];
   
   combinedEntry
 ];
@@ -120,12 +141,19 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
     First[colorMappings], 
     First[colorFunctionMappings]
   ];
+
+	Print["[DEBUG] Color mapping found: ", colorMapping];
   
   (* Use reconcileAesthetics to get the same colors the plot will use *)
   reconciledDataset = reconcileAesthetics[dataset, colorMapping, "color"];
   
+  Print["[DEBUG] Color reconciled dataset first 10 rows: ", Take[reconciledDataset, UpTo[10]]];
+  Print["[DEBUG] All color_aes values: ", reconciledDataset[[All, "color_aes"]]];
+  
   (* Extract unique color values and their corresponding data values *)
   uniqueValues = DeleteDuplicates[reconciledDataset, #1["color_aes"] === #2["color_aes"] &];
+  Print["[DEBUG] Unique values count: ", Length[uniqueValues]];
+  Print["[DEBUG] Unique values sample: ", Take[uniqueValues, UpTo[10]]];
   
   (* Determine legend title *)
   legendTitle = If[StringQ[colorMapping], 
@@ -147,12 +175,15 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
   If[isDiscrete,
     (* Create discrete legend with actual colors from reconcileAesthetics *)
     Module[{labels, colors},
+      Print["[DEBUG] Creating discrete color legend"];
       (* For string mappings, use the original data values as labels *)
       labels = If[StringQ[colorMapping],
         Sort[DeleteDuplicates[reconciledDataset[[All, colorMapping]]]],
         (* For function mappings, use the function results as labels *)
         Sort[DeleteDuplicates[colorMapping /@ dataset]]
       ];
+      Print["[DEBUG] Color legend labels: ", labels];
+      Print["[DEBUG] Length of labels: ", Length[labels]];
       
       (* Get the corresponding colors by finding the first occurrence of each label *)
       colors = labels /. Association[
@@ -161,11 +192,25 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
           (colorMapping[#] -> #["color_aes"]) & /@ uniqueValues
         ]
       ];
+      Print["[DEBUG] Color mapping association: ", Association[
+        If[StringQ[colorMapping],
+          (#[colorMapping] -> #["color_aes"]) & /@ uniqueValues,
+          (colorMapping[#] -> #["color_aes"]) & /@ uniqueValues
+        ]
+      ]];
+      Print["[DEBUG] Unique values for color mapping: ", uniqueValues];
+      Print["[DEBUG] Color legend colors: ", colors];
+      Print["[DEBUG] Length of colors: ", Length[colors]];
+      Print["[DEBUG] Color mapping type check - each color: ", Head /@ colors];
+      
+      (* Safety check: if any colors are not graphics directives, replace with Black *)
+      colors = colors /. x_ /; !MatchQ[x, _RGBColor | _GrayLevel | _Hue | _XYZColor | _LABColor | _LCHColor | _LUVColor | Black | White | Red | Green | Blue | Yellow | Magenta | Cyan | Orange | Pink | Purple | Brown | Gray | LightGray | DarkGray] :> (Print["[DEBUG] Found non-color value: ", x, " replacing with Black"]; Black);
       
       <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> colors, "aesthetic" -> "color"|>
     ],
     (* For continuous mapping, extract range and palette information *)
     Module[{dataRange, colorPalette},
+      Print["[DEBUG] Creating continuous color legend data"];
       dataRange = If[StringQ[colorMapping],
         MinMax[reconciledDataset[[All, colorMapping]]],
         MinMax[colorMapping /@ dataset]
@@ -175,6 +220,8 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
         reconciledDataset[[All, colorMapping]],
         colorMapping /@ dataset
       ]];
+      Print["[DEBUG] Continuous color range: ", dataRange];
+      Print["[DEBUG] Continuous color palette: ", colorPalette];
       
       <|"type" -> "continuous", "title" -> legendTitle, "range" -> dataRange, "palette" -> colorPalette, "aesthetic" -> "color"|>
     ]

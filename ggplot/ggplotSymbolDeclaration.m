@@ -53,6 +53,9 @@ minorGridLineStyle2::usage  = "TBD";
 
 Options[gridLines2] = Options[ticks2];
 
+(* Faceting *)
+facetWrap::usage         = "TBD";
+
 Begin["`Private`"];
 
 End[];
