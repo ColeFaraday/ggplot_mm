@@ -104,217 +104,228 @@ createFunctionTitle[func_] := Module[{funcString},
   ]
 ];
 
-(* Extract color legend information *)
-extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, colorFunctionMappings, colorKey, data, discreteDataQ, keys, colors, categoricalColors, groupedDataset, functionValues},
+(* Extract color legend information using reconcileAesthetics for consistency *)
+extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, colorFunctionMappings, colorMapping, reconciledDataset, uniqueValues, legendTitle, isDiscrete, isContinuous},
   
-  (* Look for color mappings in geom functions *)
+  (* Look for color mappings - both string keys and functions *)
   colorMappings = Cases[heldArgs, ("color" -> key_?StringQ) :> key, {0, Infinity}];
-  
-  (* Also look for function-based color mappings *)
   colorFunctionMappings = Cases[heldArgs, ("color" -> func_Function) :> func, {0, Infinity}];
-  
-  (* Check for color mappings in the main ggplot call - look at all color assignments *)
-  allColorMappings = Cases[heldArgs, ("color" -> value_) :> value, {0, Infinity}];
   
   If[Length[colorMappings] == 0 && Length[colorFunctionMappings] == 0,
     Return[None]
   ];
   
-  (* Handle string-based mappings *)
-  If[Length[colorMappings] > 0,
-    colorKey = First[colorMappings];
-    If[!keyExistsQAll[dataset, colorKey], 
-      Return[None]
-    ];
-    
-    data = dataset[[All, colorKey]];
-    discreteDataQ = isDiscreteDataQ[data];
-    
-    Return[If[discreteDataQ,
-      keys = Sort[getDiscreteKeys[data]];
-      categoricalColors = Lookup[options, "categoricalColors", OptionValue[ggplot, "categoricalColors"]];
-      If[categoricalColors === Automatic,
-        colors = ggplotColorsFunc[Length[keys]],
-        colors = Take[Flatten[ConstantArray[categoricalColors, Ceiling[Length[keys]/Length[categoricalColors]]]], Length[keys]]
-      ];
-      <|"type" -> "discrete", "title" -> colorKey, "labels" -> keys, "values" -> colors, "aesthetic" -> "color"|>,
-      (* For continuous color, create a color bar *)
-      <|"type" -> "continuous", "title" -> colorKey, "range" -> MinMax[data], "palette" -> getContinuousColorPalette[data], "aesthetic" -> "color"|>
-    ]]
+  (* Use the first mapping found (priority to string mappings) *)
+  colorMapping = If[Length[colorMappings] > 0, 
+    First[colorMappings], 
+    First[colorFunctionMappings]
   ];
   
-  (* Handle function-based mappings *)
-  If[Length[colorFunctionMappings] > 0,
-    Module[{func, groupedData, functionKeys, functionColors, functionTitle},
-      func = First[colorFunctionMappings];
-      functionTitle = createFunctionTitle[func];
-      
-      (* Apply the function to dataset to get the values it produces *)
-      functionValues = func /@ dataset;
-      
-      (* Group by function result to see what categories we get *)
-      groupedData = GroupBy[dataset, func] // KeySort;
-      functionKeys = Keys[groupedData];
-      
-      (* Get colors for these categories *)
-      categoricalColors = Lookup[options, "categoricalColors", OptionValue[ggplot, "categoricalColors"]];
-      If[categoricalColors === Automatic,
-        functionColors = ggplotColorsFunc[Length[functionKeys]],
-        functionColors = Take[Flatten[ConstantArray[categoricalColors, Ceiling[Length[functionKeys]/Length[categoricalColors]]]], Length[functionKeys]]
+  (* Use reconcileAesthetics to get the same colors the plot will use *)
+  reconciledDataset = reconcileAesthetics[dataset, colorMapping, "color"];
+  
+  (* Extract unique color values and their corresponding data values *)
+  uniqueValues = DeleteDuplicates[reconciledDataset, #1["color_aes"] === #2["color_aes"] &];
+  
+  (* Determine legend title *)
+  legendTitle = If[StringQ[colorMapping], 
+    colorMapping, 
+    createFunctionTitle[colorMapping]
+  ];
+  
+  (* Check if this is discrete or continuous mapping *)
+  isDiscrete = Length[uniqueValues] <= 20 && AllTrue[uniqueValues[[All, "color_aes"]], ColorQ]; (* Assume discrete if <= 20 unique colors *)
+  isContinuous = !isDiscrete;
+  
+  If[isDiscrete,
+    (* Create discrete legend with actual colors from reconcileAesthetics *)
+    Module[{labels, colors},
+      (* For string mappings, use the original data values as labels *)
+      labels = If[StringQ[colorMapping],
+        Sort[DeleteDuplicates[reconciledDataset[[All, colorMapping]]]],
+        (* For function mappings, use the function results as labels *)
+        Sort[DeleteDuplicates[colorMapping /@ dataset]]
       ];
       
-      (* Check if function produces continuous or discrete values *)
-      discreteDataQ = isDiscreteDataQ[functionValues];
+      (* Get the corresponding colors by finding the first occurrence of each label *)
+      colors = labels /. Association[
+        If[StringQ[colorMapping],
+          (#[colorMapping] -> #["color_aes"]) & /@ uniqueValues,
+          (colorMapping[#] -> #["color_aes"]) & /@ uniqueValues
+        ]
+      ];
       
-      Return[If[discreteDataQ,
-        <|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionColors, "aesthetic" -> "color"|>,
-        (* For continuous function output, treat as continuous color scale *)
-        <|"type" -> "continuous", "title" -> functionTitle, "range" -> MinMax[functionValues], "palette" -> getContinuousColorPalette[functionValues], "aesthetic" -> "color"|>
-      ]]
+      <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> colors, "aesthetic" -> "color"|>
+    ],
+    (* For continuous mapping, extract range and palette information *)
+    Module[{dataRange, colorRange},
+      dataRange = If[StringQ[colorMapping],
+        MinMax[reconciledDataset[[All, colorMapping]]],
+        MinMax[colorMapping /@ dataset]
+      ];
+      colorRange = {Min[uniqueValues[[All, "color_aes"]]], Max[uniqueValues[[All, "color_aes"]]]};
+      
+      <|"type" -> "continuous", "title" -> legendTitle, "range" -> dataRange, "palette" -> colorRange, "aesthetic" -> "color"|>
     ]
-  ];
-  
-  (* If we get here, no mappings were found *)
-  None
+  ]
 ];
 
-(* Extract shape legend information *)
-extractShapeLegendInfo[heldArgs_, dataset_, options_] := Module[{shapeMappings, shapeFunctionMappings, shapeKey, data, discreteDataQ, keys, shapes, categoricalShapes, functionValues},
+(* Extract shape legend information using reconcileAesthetics for consistency *)
+extractShapeLegendInfo[heldArgs_, dataset_, options_] := Module[{shapeMappings, shapeFunctionMappings, shapeMapping, reconciledDataset, uniqueValues, legendTitle, labels, shapes},
   shapeMappings = Cases[heldArgs, ("shape" -> key_?StringQ) :> key, {0, Infinity}];
   shapeFunctionMappings = Cases[heldArgs, ("shape" -> func_Function) :> func, {0, Infinity}];
   
   If[Length[shapeMappings] == 0 && Length[shapeFunctionMappings] == 0, Return[None]];
   
-  (* Handle string-based mappings *)
-  If[Length[shapeMappings] > 0,
-    shapeKey = First[shapeMappings];
-    If[!keyExistsQAll[dataset, shapeKey], Return[None]];
-    
-    data = dataset[[All, shapeKey]];
-    discreteDataQ = isDiscreteDataQ[data];
-    
-    Return[If[discreteDataQ,
-      keys = Sort[getDiscreteKeys[data]];
-      categoricalShapes = Lookup[options, "categoricalShapes", OptionValue[ggplot, "categoricalShapes"]];
-      shapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[keys]/Length[categoricalShapes]]]], Length[keys]];
-      <|"type" -> "discrete", "title" -> shapeKey, "labels" -> keys, "values" -> shapes, "aesthetic" -> "shape"|>,
-      None (* Shapes are only discrete *)
-    ]]
+  (* Use the first mapping found (priority to string mappings) *)
+  shapeMapping = If[Length[shapeMappings] > 0, 
+    First[shapeMappings], 
+    First[shapeFunctionMappings]
   ];
   
-  (* Handle function-based mappings *)
-  If[Length[shapeFunctionMappings] > 0,
-    Module[{func, groupedData, functionKeys, functionShapes, functionTitle},
-      func = First[shapeFunctionMappings];
-      functionTitle = createFunctionTitle[func];
-      
-      functionValues = func /@ dataset;
-      discreteDataQ = isDiscreteDataQ[functionValues];
-      
-      If[discreteDataQ,
-        groupedData = GroupBy[dataset, func] // KeySort;
-        functionKeys = Keys[groupedData];
-        categoricalShapes = Lookup[options, "categoricalShapes", OptionValue[ggplot, "categoricalShapes"]];
-        functionShapes = Take[Flatten[ConstantArray[categoricalShapes, Ceiling[Length[functionKeys]/Length[categoricalShapes]]]], Length[functionKeys]];
-        Return[<|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionShapes, "aesthetic" -> "shape"|>],
-        Return[None] (* Shapes are only discrete *)
-      ]
+  (* Use reconcileAesthetics to get the same shapes the plot will use *)
+  reconciledDataset = reconcileAesthetics[dataset, shapeMapping, "shape"];
+  
+  (* Extract unique shape values *)
+  uniqueValues = DeleteDuplicates[reconciledDataset, #1["shape_aes"] === #2["shape_aes"] &];
+  
+  (* Determine legend title *)
+  legendTitle = If[StringQ[shapeMapping], 
+    shapeMapping, 
+    createFunctionTitle[shapeMapping]
+  ];
+  
+  (* Shapes are always discrete *)
+  labels = If[StringQ[shapeMapping],
+    Sort[DeleteDuplicates[reconciledDataset[[All, shapeMapping]]]],
+    Sort[DeleteDuplicates[shapeMapping /@ dataset]]
+  ];
+  
+  (* Get the corresponding shapes *)
+  shapes = labels /. Association[
+    If[StringQ[shapeMapping],
+      (#[shapeMapping] -> #["shape_aes"]) & /@ uniqueValues,
+      (shapeMapping[#] -> #["shape_aes"]) & /@ uniqueValues
     ]
   ];
   
-  None
+  <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> shapes, "aesthetic" -> "shape"|>
 ];
 
-(* Extract size legend information *)
-extractSizeLegendInfo[heldArgs_, dataset_, options_] := Module[{sizeMappings, sizeFunctionMappings, sizeKey, data, discreteDataQ, keys, sizes, functionValues},
+(* Extract size legend information using reconcileAesthetics for consistency *)
+extractSizeLegendInfo[heldArgs_, dataset_, options_] := Module[{sizeMappings, sizeFunctionMappings, sizeMapping, reconciledDataset, uniqueValues, legendTitle, labels, sizes, isDiscrete, isContinuous},
   sizeMappings = Cases[heldArgs, ("size" -> key_?StringQ) :> key, {0, Infinity}];
   sizeFunctionMappings = Cases[heldArgs, ("size" -> func_Function) :> func, {0, Infinity}];
   
   If[Length[sizeMappings] == 0 && Length[sizeFunctionMappings] == 0, Return[None]];
   
-  (* Handle string-based mappings *)
-  If[Length[sizeMappings] > 0,
-    sizeKey = First[sizeMappings];
-    If[!keyExistsQAll[dataset, sizeKey], Return[None]];
-    
-    data = dataset[[All, sizeKey]];
-    discreteDataQ = isDiscreteDataQ[data];
-    
-    Return[If[discreteDataQ,
-      keys = Sort[getDiscreteKeys[data]];
-      sizes = Rescale[Range[Length[keys]], {1, Length[keys]}, {8, 16}]; (* Default size range *)
-      <|"type" -> "discrete", "title" -> sizeKey, "labels" -> keys, "values" -> sizes, "aesthetic" -> "size"|>,
-      <|"type" -> "continuous", "title" -> sizeKey, "range" -> MinMax[data], "sizeRange" -> {8, 16}, "aesthetic" -> "size"|>
-    ]]
+  (* Use the first mapping found (priority to string mappings) *)
+  sizeMapping = If[Length[sizeMappings] > 0, 
+    First[sizeMappings], 
+    First[sizeFunctionMappings]
   ];
   
-  (* Handle function-based mappings *)
-  If[Length[sizeFunctionMappings] > 0,
-    Module[{func, groupedData, functionKeys, functionSizes, functionTitle},
-      func = First[sizeFunctionMappings];
-      functionTitle = createFunctionTitle[func];
+  (* Use reconcileAesthetics to get the same sizes the plot will use *)
+  reconciledDataset = reconcileAesthetics[dataset, sizeMapping, "size"];
+  
+  (* Extract unique size values *)
+  uniqueValues = DeleteDuplicates[reconciledDataset, #1["size_aes"] === #2["size_aes"] &];
+  
+  (* Determine legend title *)
+  legendTitle = If[StringQ[sizeMapping], 
+    sizeMapping, 
+    createFunctionTitle[sizeMapping]
+  ];
+  
+  (* Check if this is discrete or continuous mapping *)
+  isDiscrete = Length[uniqueValues] <= 10; (* Assume discrete if <= 10 unique sizes *)
+  
+  If[isDiscrete,
+    (* Create discrete legend *)
+    labels = If[StringQ[sizeMapping],
+      Sort[DeleteDuplicates[reconciledDataset[[All, sizeMapping]]]],
+      Sort[DeleteDuplicates[sizeMapping /@ dataset]]
+    ];
+    
+    sizes = labels /. Association[
+      If[StringQ[sizeMapping],
+        (#[sizeMapping] -> #["size_aes"]) & /@ uniqueValues,
+        (sizeMapping[#] -> #["size_aes"]) & /@ uniqueValues
+      ]
+    ];
+    
+    <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> sizes, "aesthetic" -> "size"|>,
+    
+    (* Create continuous legend *)
+    Module[{dataRange, sizeRange},
+      dataRange = If[StringQ[sizeMapping],
+        MinMax[reconciledDataset[[All, sizeMapping]]],
+        MinMax[sizeMapping /@ dataset]
+      ];
+      sizeRange = MinMax[reconciledDataset[[All, "size_aes"]]];
       
-      functionValues = func /@ dataset;
-      discreteDataQ = isDiscreteDataQ[functionValues];
-      
-      Return[If[discreteDataQ,
-        groupedData = GroupBy[dataset, func] // KeySort;
-        functionKeys = Keys[groupedData];
-        functionSizes = Rescale[Range[Length[functionKeys]], {1, Length[functionKeys]}, {8, 16}];
-        <|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionSizes, "aesthetic" -> "size"|>,
-        <|"type" -> "continuous", "title" -> functionTitle, "range" -> MinMax[functionValues], "sizeRange" -> {8, 16}, "aesthetic" -> "size"|>
-      ]]
+      <|"type" -> "continuous", "title" -> legendTitle, "range" -> dataRange, "sizeRange" -> sizeRange, "aesthetic" -> "size"|>
     ]
-  ];
-  
-  None
+  ]
 ];
 
-(* Extract alpha legend information *)
-extractAlphaLegendInfo[heldArgs_, dataset_, options_] := Module[{alphaMappings, alphaFunctionMappings, alphaKey, data, discreteDataQ, keys, alphas, functionValues},
+
+(* Extract alpha legend information using reconcileAesthetics for consistency *)
+extractAlphaLegendInfo[heldArgs_, dataset_, options_] := Module[{alphaMappings, alphaFunctionMappings, alphaMapping, reconciledDataset, uniqueValues, legendTitle, labels, alphas, isDiscrete},
   alphaMappings = Cases[heldArgs, ("alpha" -> key_?StringQ) :> key, {0, Infinity}];
   alphaFunctionMappings = Cases[heldArgs, ("alpha" -> func_Function) :> func, {0, Infinity}];
   
   If[Length[alphaMappings] == 0 && Length[alphaFunctionMappings] == 0, Return[None]];
   
-  (* Handle string-based mappings *)
-  If[Length[alphaMappings] > 0,
-    alphaKey = First[alphaMappings];
-    If[!keyExistsQAll[dataset, alphaKey], Return[None]];
-    
-    data = dataset[[All, alphaKey]];
-    discreteDataQ = isDiscreteDataQ[data];
-    
-    Return[If[discreteDataQ,
-      keys = Sort[getDiscreteKeys[data]];
-      alphas = Rescale[Range[Length[keys]], {1, Length[keys]}, {0.3, 1.0}]; (* Default alpha range *)
-      <|"type" -> "discrete", "title" -> alphaKey, "labels" -> keys, "values" -> alphas, "aesthetic" -> "alpha"|>,
-      <|"type" -> "continuous", "title" -> alphaKey, "range" -> MinMax[data], "alphaRange" -> {0.3, 1.0}, "aesthetic" -> "alpha"|>
-    ]]
+  (* Use the first mapping found (priority to string mappings) *)
+  alphaMapping = If[Length[alphaMappings] > 0, 
+    First[alphaMappings], 
+    First[alphaFunctionMappings]
   ];
   
-  (* Handle function-based mappings *)
-  If[Length[alphaFunctionMappings] > 0,
-    Module[{func, groupedData, functionKeys, functionAlphas, functionTitle},
-      func = First[alphaFunctionMappings];
-      functionTitle = createFunctionTitle[func];
+  (* Use reconcileAesthetics to get the same alphas the plot will use *)
+  reconciledDataset = reconcileAesthetics[dataset, alphaMapping, "alpha"];
+  
+  (* Extract unique alpha values *)
+  uniqueValues = DeleteDuplicates[reconciledDataset, #1["alpha_aes"] === #2["alpha_aes"] &];
+  
+  (* Determine legend title *)
+  legendTitle = If[StringQ[alphaMapping], 
+    alphaMapping, 
+    createFunctionTitle[alphaMapping]
+  ];
+  
+  (* Check if this is discrete or continuous mapping *)
+  isDiscrete = Length[uniqueValues] <= 10; (* Assume discrete if <= 10 unique alphas *)
+  
+  If[isDiscrete,
+    (* Create discrete legend *)
+    labels = If[StringQ[alphaMapping],
+      Sort[DeleteDuplicates[reconciledDataset[[All, alphaMapping]]]],
+      Sort[DeleteDuplicates[alphaMapping /@ dataset]]
+    ];
+    
+    alphas = labels /. Association[
+      If[StringQ[alphaMapping],
+        (#[alphaMapping] -> #["alpha_aes"]) & /@ uniqueValues,
+        (alphaMapping[#] -> #["alpha_aes"]) & /@ uniqueValues
+      ]
+    ];
+    
+    <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> alphas, "aesthetic" -> "alpha"|>,
+    
+    (* Create continuous legend *)
+    Module[{dataRange, alphaRange},
+      dataRange = If[StringQ[alphaMapping],
+        MinMax[reconciledDataset[[All, alphaMapping]]],
+        MinMax[alphaMapping /@ dataset]
+      ];
+      alphaRange = MinMax[reconciledDataset[[All, "alpha_aes"]]];
       
-      functionValues = func /@ dataset;
-      discreteDataQ = isDiscreteDataQ[functionValues];
-      
-      Return[If[discreteDataQ,
-        groupedData = GroupBy[dataset, func] // KeySort;
-        functionKeys = Keys[groupedData];
-        functionAlphas = Rescale[Range[Length[functionKeys]], {1, Length[functionKeys]}, {0.3, 1.0}];
-        <|"type" -> "discrete", "title" -> functionTitle, "labels" -> functionKeys, "values" -> functionAlphas, "aesthetic" -> "alpha"|>,
-        <|"type" -> "continuous", "title" -> functionTitle, "range" -> MinMax[functionValues], "alphaRange" -> {0.3, 1.0}, "aesthetic" -> "alpha"|>
-      ]]
+      <|"type" -> "continuous", "title" -> legendTitle, "range" -> dataRange, "alphaRange" -> alphaRange, "aesthetic" -> "alpha"|>
     ]
-  ];
-  
-  None
+  ]
 ];
-
 End[];
 
 EndPackage[];
