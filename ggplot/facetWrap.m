@@ -134,6 +134,7 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
       (* Combine all primitives *)
       primitives = {points, lines, paths, smooths, histograms} // Flatten;
       
+			(* TODO: should also inherit theme values *)
       (* Create the individual plot *)
       Graphics[primitives,
         Frame -> True,
@@ -141,7 +142,7 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
         PlotRange -> Lookup[options, PlotRange, All],
         AspectRatio -> Lookup[options, AspectRatio, 7/10],
         ImageSize -> 150, (* Smaller individual panels *)
-        Background -> Lookup[options, Background, White],
+        Background -> Lookup[options, Background, None], (* Use global background if not specified *)
         FrameStyle -> Lookup[options, FrameStyle, Automatic],
         GridLines -> None
       ]
@@ -156,21 +157,13 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   stripLabels = Map[Function[value, Style[ToString[value], 12] ], uniqueValues];
   
   (* Arrange panels in grid with labels *)
-  arrangedPanels = MapThread[Function[{panel, label},
-    Labeled[panel, label, Top]
-  ], {panels, stripLabels}];
-  
-  (* Pad to fill grid if needed *)
-  While[Length[arrangedPanels] < gridDims[[1]] * gridDims[[2]],
-    AppendTo[arrangedPanels, Graphics[{}, ImageSize -> 150]]
-  ];
-  
+
   (* Reshape into grid *)
-  arrangedPanels = ArrayReshape[arrangedPanels, gridDims];
+  arrangedPanels = ArrayReshape[panels, gridDims];
   
   (* Create the initial grid *)
-  finalGrid = Grid[arrangedPanels, Spacings -> {1, 1}];
-  
+	pg = ResourceFunction["PlotGrid"];
+
   (* Create legend if needed *)
   showLegend = Lookup[options, "showLegend", True]; (* Default to True for faceted plots *)
   legendInfo = {};
@@ -179,19 +172,21 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
     legendInfo = extractLegendInfo[heldArgs, globalDataset, options];
     Print["Debug - Legend info: ", legendInfo];
   ];
-  
-  (* Apply legend to the final grid if needed *)
-  If[Length[legendInfo] > 0,
+
+
+	(* make the first panel have the legend and let PlotGrid decide how to place*)
+	arrangedPanels[[1,1]] = 
     Legended[
-      finalGrid,
+      arrangedPanels[[1,1]],
       Placed[
         Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
         GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
       ]
-    ],
-    (* No legend case *)
-    finalGrid
-  ]
+    ];
+
+  finalGrid = pg[arrangedPanels];
+
+		finalGrid
 ];
 
 End[];
