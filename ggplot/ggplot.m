@@ -28,6 +28,16 @@ GetScaledCoord["MiddleRight", offset_ : defaultOffset] := {{1 - offset[[1]], 0.5
 GetScaledCoord["TopMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 1 - offset[[2]]}, {0.5, 1}};
 GetScaledCoord["BottomMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 0 + offset[[2]]}, {0.5, 0}};
 
+(* Outer legend positioning functions - for legends outside the plot area *)
+GetScaledCoord["OuterBottomLeft", offset_ : defaultOffset] := {{0 - offset[[1]], 0 - offset[[2]]}, {1, 0}};
+GetScaledCoord["OuterBottomRight", offset_ : defaultOffset] := {{1 + offset[[1]], 0 - offset[[2]]}, {0, 0}};
+GetScaledCoord["OuterTopLeft", offset_ : defaultOffset] := {{0 - offset[[1]], 1 + offset[[2]]}, {1, 1}};
+GetScaledCoord["OuterTopRight", offset_ : defaultOffset] := {{1 + offset[[1]], 1 + offset[[2]]}, {0, 1}};
+GetScaledCoord["OuterMiddleLeft", offset_ : defaultOffset] := {{0 - offset[[1]], 0.5 + offset[[2]]}, {1, 0.5}};
+GetScaledCoord["OuterMiddleRight", offset_ : defaultOffset] := {{1 + offset[[1]], 0.5 + offset[[2]]}, {0, 0.5}};
+GetScaledCoord["OuterTopMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 1 + offset[[2]]}, {0.5, 0}};
+GetScaledCoord["OuterBottomMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 0 - offset[[2]]}, {0.5, 1}};
+
 (* Convert legend info to built-in legend functions *)
 convertLegendInfo[legendInfo_] := Module[{legendItems},
   If[Length[legendInfo] == 0, Return[{}]];
@@ -42,7 +52,7 @@ convertLegendInfo[legendInfo_] := Module[{legendItems},
       BarLegend[{data["palette"], data["range"]}, LegendLabel -> data["title"]],
       
       data["aesthetic"] === "shape" && data["type"] === "discrete",
-      PointLegend[data["values"], data["labels"], LegendLabel -> data["title"]],
+      PointLegend[ConstantArray[Black, Length[data["labels"]]], data["labels"], LegendLabel -> data["title"], LegendMarkers->(data[["values"]]/.{ggplotSizePlaceholder->12, ggplotAlphaPlaceholder->Opacity[1.], ggplotColorPlaceholder->Black})],
       
       data["aesthetic"] === "size" && data["type"] === "discrete",
       PointLegend[ConstantArray[Graphics[{Black, Disk[]}], Length[data["labels"]]], data["labels"], 
@@ -190,7 +200,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
       ],
       Placed[
         Column[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
-        GetScaledCoord[Lookup[options, "legendPosition", "TopRight"]]
+        GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
       ]
     ],
     (* No legend case *)
