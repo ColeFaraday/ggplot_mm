@@ -44,6 +44,11 @@ convertLegendInfo[legendInfo_] := Module[{legendItems},
   
   legendItems = KeyValueMap[Function[{aesthetic, data},
     Which[
+      (* Handle combined aesthetics (multiple aesthetics for same variable) *)
+      KeyExistsQ[data, "aesthetics"],
+      createCombinedLegend[data],
+      
+      (* Single aesthetic legends *)
       data["aesthetic"] === "color" && data["type"] === "discrete",
       LineLegend[data["values"], data["labels"], LegendLabel -> data["title"]],
       
@@ -65,6 +70,33 @@ convertLegendInfo[legendInfo_] := Module[{legendItems},
   ], legendInfo];
   
   legendItems
+];
+
+(* Create a combined legend for multiple aesthetics mapping to the same variable *)
+createCombinedLegend[data_] := Module[{
+  aesthetics, labels, colors, shapes, sizes, alphas, markers, legendColors
+  },
+  aesthetics = data["aesthetics"];
+  labels = data["labels"];
+  
+  (* Extract values for each aesthetic *)
+  colors = Lookup[data["values"], "color", ConstantArray[Black, Length[labels]]];
+  shapes = Lookup[data["values"], "shape", ConstantArray[FilledMarkers[][[1]], Length[labels]]];
+  sizes = Lookup[data["values"], "size", ConstantArray[12, Length[labels]]];
+  alphas = Lookup[data["values"], "alpha", ConstantArray[1., Length[labels]]];
+
+  (* Create markers that combine shape, size, and alpha *)
+  markers = MapThread[Function[{shape, size, alpha, colors},
+    shape /. {ggplotSizePlaceholder -> size, ggplotAlphaPlaceholder -> Opacity[alpha], ggplotColorPlaceholder -> colors}
+  ], {shapes, sizes, alphas, colors}];
+  
+  (* Use colors as the legend colors and shapes/sizes as markers *)
+  PointLegend[colors, labels, 
+    LegendLabel -> data["title"], 
+    LegendMarkers -> markers,
+    LegendMarkerSize -> {50, 45},
+    LegendLayout -> (Column[Row /@ #, Spacings -> -2] &)
+  ]
 ];
 
 Attributes[argPatternQ] = {HoldAllComplete};

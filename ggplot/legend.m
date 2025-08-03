@@ -10,26 +10,80 @@ Begin["`Private`"];
 (* Legend creation functions *)
 
 (* Extract legend information from aesthetic mappings *)
-extractLegendInfo[heldArgs_, dataset_, options_] := Module[{legendInfo, colorLegend, shapeLegend, sizeLegend, alphaLegend},
+extractLegendInfo[heldArgs_, dataset_, options_] := Module[{legendInfo, colorLegend, shapeLegend, sizeLegend, alphaLegend, groupedLegends},
   legendInfo = <||>;
   
-  (* Extract color legend info *)
+  (* Extract individual legend info for each aesthetic *)
   colorLegend = extractColorLegendInfo[heldArgs, dataset, options];
   If[colorLegend =!= None, legendInfo["color"] = colorLegend];
   
-  (* Extract shape legend info *)
   shapeLegend = extractShapeLegendInfo[heldArgs, dataset, options];
   If[shapeLegend =!= None, legendInfo["shape"] = shapeLegend];
   
-  (* Extract size legend info *)
   sizeLegend = extractSizeLegendInfo[heldArgs, dataset, options];
   If[sizeLegend =!= None, legendInfo["size"] = sizeLegend];
   
-  (* Extract alpha legend info *)
   alphaLegend = extractAlphaLegendInfo[heldArgs, dataset, options];
   If[alphaLegend =!= None, legendInfo["alpha"] = alphaLegend];
   
-  legendInfo
+  
+  (* Group legends by their mapped variable (title) to combine multiple aesthetics *)
+  groupedLegends = combineLegendsForSameVariable[legendInfo];
+  
+  groupedLegends
+];
+
+(* Combine legends that map to the same variable into single combined legends *)
+combineLegendsForSameVariable[legendInfo_] := Module[{groupedByVariable, combinedLegends},
+  (* Group legend entries by their mapped variable (title) *)
+  groupedByVariable = GroupBy[Normal[legendInfo], #[[2]]["title"] &];
+
+	
+  (* For each variable, combine all aesthetics that map to it *)
+  combinedLegends = Association[KeyValueMap[Function[{variable, aestheticsForVariable},
+    (* If only one aesthetic maps to this variable, keep it as is *)
+    If[Length[aestheticsForVariable] == 1,
+      First[aestheticsForVariable],
+      (* Otherwise, combine multiple aesthetics into one legend *)
+      variable -> combineLegendAesthetics[aestheticsForVariable]
+    ]
+  ], groupedByVariable]];
+
+  
+  combinedLegends
+];
+
+(* Combine multiple aesthetics for the same variable into a single legend entry *)
+combineLegendAesthetics[aestheticsForVariable_] := Module[{
+  firstEntry, combinedEntry, aesthetics, labels, isAllDiscrete, isAllContinuous
+  },
+  (* Get the first entry as the base *)
+  firstEntry = First[aestheticsForVariable][[2]];
+	
+  (* Extract all aesthetic names *)
+  aesthetics = #[[1]] & /@ aestheticsForVariable;
+
+	
+  (* Check if all entries are the same type *)
+  isAllDiscrete = AllTrue[#[[2]]["type"] & /@ aestheticsForVariable, # === "discrete" &];
+  isAllContinuous = AllTrue[#[[2]]["type"] & /@ aestheticsForVariable, # === "continuous" &];
+  
+  (* Only combine if they're all the same type and have the same labels *)
+  If[isAllDiscrete && SameQ @@ (#[[2]]["labels"] & /@ aestheticsForVariable),
+    (* Create combined discrete legend *)
+    combinedEntry = <|
+      "type" -> "discrete",
+      "title" -> firstEntry["title"],
+      "labels" -> firstEntry["labels"],
+      "aesthetics" -> aesthetics,
+      "values" -> Association[#[[1]] -> #[[2]]["values"] & /@ aestheticsForVariable]
+    |>,
+    (* For now, if types don't match or labels differ, keep the first one *)
+    combinedEntry = firstEntry
+  ];
+
+  
+  combinedEntry
 ];
 
 (* Extract color legend information *)
@@ -164,171 +218,6 @@ extractAlphaLegendInfo[heldArgs_, dataset_, options_] := Module[{alphaMappings, 
     <|"type" -> "discrete", "title" -> alphaKey, "labels" -> keys, "values" -> alphas, "aesthetic" -> "alpha"|>,
     <|"type" -> "continuous", "title" -> alphaKey, "range" -> MinMax[data], "alphaRange" -> {0.3, 1.0}, "aesthetic" -> "alpha"|>
   ]
-];
-
-(* Create legend graphics *)
-createLegendGraphics[legendInfo_, options_] := Module[{legendPosition, legendSpacing, legendItems},
-  If[Length[legendInfo] == 0, 
-    Return[{}]
-  ];
-
-	
-  legendPosition = Lookup[options, "legendPosition", "right"];
-  legendSpacing = Lookup[options, "legendSpacing", 0.15];
-  
-  legendItems = KeyValueMap[createSingleLegend, legendInfo];
-	
-  (* Position legends vertically and flatten *)
-  Module[{positioned},
-    positioned = MapIndexed[Function[{legend, index}, 
-      Translate[Flatten[legend], {0, -(First[index] - 1) * legendSpacing}]
-    ], legendItems];
-    Flatten[positioned]
-  ]
-];
-
-(* Create a single legend for one aesthetic *)
-createSingleLegend[aesthetic_, legendData_] := Module[{title, legendType, legendGraphics},
-  
-  title = legendData["title"];
-  legendType = legendData["type"];
-  
-  legendGraphics = Which[
-    legendType === "discrete" && legendData["aesthetic"] === "color",
-    createDiscreteColorLegend[title, legendData["labels"], legendData["values"]],
-    
-    legendType === "discrete" && legendData["aesthetic"] === "shape",
-    createDiscreteShapeLegend[title, legendData["labels"], legendData["values"]],
-    
-    legendType === "discrete" && legendData["aesthetic"] === "size",
-    createDiscreteSizeLegend[title, legendData["labels"], legendData["values"]],
-    
-    legendType === "discrete" && legendData["aesthetic"] === "alpha",
-    createDiscreteAlphaLegend[title, legendData["labels"], legendData["values"]],
-    
-    legendType === "continuous" && legendData["aesthetic"] === "color",
-    createContinuousColorLegend[title, legendData["range"], legendData["palette"]],
-    
-    legendType === "continuous" && legendData["aesthetic"] === "size",
-    createContinuousSizeLegend[title, legendData["range"], legendData["sizeRange"]],
-    
-    legendType === "continuous" && legendData["aesthetic"] === "alpha",
-    createContinuousAlphaLegend[title, legendData["range"], legendData["alphaRange"]],
-    
-    True,
-    {} (* Default empty legend *)
-  ];
-  
-  legendGraphics
-];
-
-(* Discrete color legend *)
-createDiscreteColorLegend[title_, labels_, colors_] := Module[{legendItems, titleText},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  legendItems = MapIndexed[Function[{label, index},
-    {
-      colors[[First[index]]],
-      Rectangle[{-0.05, -First[index] * 0.04}, {-0.02, -First[index] * 0.04 + 0.02}],
-      Text[Style[ToString[label], 10], {0, -First[index] * 0.04 + 0.01}]
-    }
-  ], labels];
-  
-  {titleText, legendItems}
-];
-
-(* Discrete shape legend *)
-createDiscreteShapeLegend[title_, labels_, shapes_] := Module[{legendItems, titleText},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  legendItems = MapIndexed[Function[{label, index},
-    {
-      Black,
-      Inset[Style[shapes[[First[index]]], 12], {-0.035, -First[index] * 0.04 + 0.01}],
-      Text[Style[ToString[label], 10], {0, -First[index] * 0.04 + 0.01}]
-    }
-  ], labels];
-  
-  {titleText, legendItems}
-];
-
-(* Discrete size legend *)
-createDiscreteSizeLegend[title_, labels_, sizes_] := Module[{legendItems, titleText},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  legendItems = MapIndexed[Function[{label, index},
-    {
-      Black,
-      Inset[Style["\[FilledCircle]", sizes[[First[index]]]], {-0.035, -First[index] * 0.04 + 0.01}],
-      Text[Style[ToString[label], 10], {0, -First[index] * 0.04 + 0.01}]
-    }
-  ], labels];
-  
-  {titleText, legendItems}
-];
-
-(* Discrete alpha legend *)
-createDiscreteAlphaLegend[title_, labels_, alphas_] := Module[{legendItems, titleText},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  legendItems = MapIndexed[Function[{label, index},
-    {
-      Directive[Black, Opacity[alphas[[First[index]]]]],
-      Rectangle[{-0.05, -First[index] * 0.04}, {-0.02, -First[index] * 0.04 + 0.02}],
-      Text[Style[ToString[label], 10], {0, -First[index] * 0.04 + 0.01}]
-    }
-  ], labels];
-  
-  {titleText, legendItems}
-];
-
-(* Continuous color legend (color bar) *)
-createContinuousColorLegend[title_, {min_, max_}, palette_] := Module[{titleText, colorBar, tickLabels, nSteps, colorSteps, rectangles},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  
-  (* Create a simple color bar using rectangles instead of DensityPlot *)
-  nSteps = 20; (* Number of color steps in the bar *)
-  colorSteps = Table[Blend[palette, i/(nSteps-1)], {i, 0, nSteps-1}];
-  rectangles = Table[
-    {colorSteps[[i]], 
-     Rectangle[{-0.05, min + (i-1)*(max-min)/nSteps}, {-0.02, min + i*(max-min)/nSteps}]},
-    {i, 1, nSteps}
-  ];
-  
-  (* Add border around color bar *)
-  border = {Black, Thickness[0.001], 
-    Line[{{-0.05, min}, {-0.05, max}, {-0.02, max}, {-0.02, min}, {-0.05, min}}]};
-  
-  tickLabels = {
-    Text[Style[ToString[NumberForm[min, 3]], 9], {0.01, min}],
-    Text[Style[ToString[NumberForm[max, 3]], 9], {0.01, max}]
-  };
-
-  {titleText, rectangles, border, tickLabels}
-];
-
-(* Continuous size legend *)
-createContinuousSizeLegend[title_, {min_, max_}, {minSize_, maxSize_}] := Module[{titleText, sizeItems},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  sizeItems = {
-    Inset[Style["\[FilledCircle]", minSize], {-0.035, -0.02}],
-    Text[Style[ToString[NumberForm[min, 3]], 9], {0, -0.02}],
-    Inset[Style["\[FilledCircle]", maxSize], {-0.035, -0.06}],
-    Text[Style[ToString[NumberForm[max, 3]], 9], {0, -0.06}]
-  };
-  
-  {titleText, sizeItems}
-];
-
-(* Continuous alpha legend *)
-createContinuousAlphaLegend[title_, {min_, max_}, {minAlpha_, maxAlpha_}] := Module[{titleText, alphaItems},
-  titleText = Text[Style[title, Bold, 12], {0, 0.1}];
-  alphaItems = {
-    Directive[Black, Opacity[minAlpha]],
-    Rectangle[{-0.05, -0.04}, {-0.02, -0.02}],
-    Text[Style[ToString[NumberForm[min, 3]], 9], {0, -0.03}],
-    Directive[Black, Opacity[maxAlpha]],
-    Rectangle[{-0.05, -0.08}, {-0.02, -0.06}],
-    Text[Style[ToString[NumberForm[max, 3]], 9], {0, -0.07}]
-  };
-  
-  {titleText, alphaItems}
 ];
 
 End[];
