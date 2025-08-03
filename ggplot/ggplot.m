@@ -27,13 +27,16 @@ Options[ggplot] = DeleteDuplicates[Join[{
   "sequentialColors" -> {Blue, White, Red},
   "divergingColors" -> {Blue, White, Red},
   "continuousColorPalette" -> "auto",
-  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"}
+  "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"},
+  "showLegend" -> Automatic,
+  "legendPosition" -> "right",
+  "legendSpacing" -> 0.15
 }, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
-ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, graphic},
+ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic},
   
   heldArgs = Hold[args];
   options = Cases[heldArgs, _Rule, 1];
@@ -109,8 +112,28 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     ];
   ];
 
+  (* Create legend if needed *)
+  showLegend = Lookup[options, "showLegend", OptionValue[ggplot, "showLegend"]];
+  Print["[DEBUG] Show legend setting: ", showLegend];
+  legendGraphics = {};
+  If[showLegend === Automatic || showLegend === True,
+    Print["[DEBUG] Creating legend..."];
+    legendInfo = extractLegendInfo[heldArgs, dataset, options];
+    Print["[DEBUG] Legend info created: ", legendInfo];
+    If[Length[legendInfo] > 0,
+      Print["[DEBUG] Creating legend graphics..."];
+      legendGraphics = createLegendGraphics[legendInfo, options];
+      Print["[DEBUG] Legend graphics created: ", Length[legendGraphics], " items"];
+      Print["[DEBUG] Legend graphics: ", legendGraphics];
+      (* Position legend relative to plot area - flatten first, then translate *)
+      legendGraphics = Flatten[legendGraphics];
+      legendGraphics = Translate[legendGraphics, {1.1, 0.5}]; (* Default to right side *)
+      Print["[DEBUG] Legend graphics positioned"];
+    ];
+  ];
 
-  graphic = Graphics[graphicsPrimitives,
+
+  graphic = Graphics[Flatten[{graphicsPrimitives, legendGraphics}],
     FrameLabel        -> frameLabel,
     PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
     ImageSize         -> Lookup[options, ImageSize, OptionValue[ggplot, ImageSize]],
