@@ -177,7 +177,7 @@ createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
   If[showLegend === Automatic || showLegend === True,
     Print["Debug - Extracting legend info from global dataset"];
     legendInfo = extractLegendInfo[heldArgs, globalDataset, options];
-    Print["Debug - Legend info length: ", Length[legendInfo]];
+    Print["Debug - Legend info: ", legendInfo];
   ];
   
   (* Apply legend to the final grid if needed *)

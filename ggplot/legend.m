@@ -203,9 +203,6 @@ extractColorLegendInfo[heldArgs_, dataset_, options_] := Module[{colorMappings, 
       Print["[DEBUG] Length of colors: ", Length[colors]];
       Print["[DEBUG] Color mapping type check - each color: ", Head /@ colors];
       
-      (* Safety check: if any colors are not graphics directives, replace with Black *)
-      colors = colors /. x_ /; !MatchQ[x, _RGBColor | _GrayLevel | _Hue | _XYZColor | _LABColor | _LCHColor | _LUVColor | Black | White | Red | Green | Blue | Yellow | Magenta | Cyan | Orange | Pink | Purple | Brown | Gray | LightGray | DarkGray] :> (Print["[DEBUG] Found non-color value: ", x, " replacing with Black"]; Black);
-      
       <|"type" -> "discrete", "title" -> legendTitle, "labels" -> labels, "values" -> colors, "aesthetic" -> "color"|>
     ],
     (* For continuous mapping, extract range and palette information *)
