@@ -9,8 +9,8 @@ Begin["`Private`"];
 
 (* geomLine implementation *)
 
-Options[geomLine] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, groupbyKeys, colorFunc, thicknessFunc, alphaFunc, lineTypeFunc, output},
+Options[geomLine] = {"data" -> {}, "x" -> Null, "y" -> Null, "group" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, groupbyKeys, output},
   (* Ensure X/Y has been given *)
   If[OptionValue["x"] === Null || OptionValue["y"] === Null, Message[ggplot::xOrYNotGiven]; Throw[Null];];
 
@@ -20,13 +20,19 @@ geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infini
   newDataset = Replace[newDataset, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
 
   (* For each key necessary, reconcile the aesthetics and append them to the dataset as a column name i.e. "color_aes" -> somecolor *)
+  newDataset = reconcileAesthetics[newDataset, OptionValue["group"], "group"];
   newDataset = reconcileAesthetics[newDataset, OptionValue["color"], "color"];
   newDataset = reconcileAesthetics[newDataset, OptionValue["alpha"], "alpha"];
   newDataset = reconcileAesthetics[newDataset, OptionValue["thickness"], "thickness"];
   (*newDataset = reconcileAesthetics[newDataset, OptionValue["dashing"], "dashing"];*) (* bug here with Dashing and Graphics that has been reported to Wolfram *)
 
-  (* Group the data based on their aesthetic keys and then apply correct aesthetics while making a line primitive *)
-  groupbyKeys = Function[{#["color_aes"], #["alpha_aes"], #["thickness_aes"]}];
+  (* Group the data based on group aesthetic, or fall back to color-based grouping for backward compatibility *)
+  groupbyKeys = If[OptionValue["group"] =!= Null,
+    (* Use explicit group aesthetic - this is the primary grouping mechanism *)
+    Function[#["group_aes"]],
+    (* Fall back to color-based grouping for backward compatibility *)
+    Function[{#["color_aes"], #["alpha_aes"], #["thickness_aes"]}]
+  ];
   output =  newDataset //
             GroupBy[groupbyKeys] //
             Values //
