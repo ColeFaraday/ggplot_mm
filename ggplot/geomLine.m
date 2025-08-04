@@ -10,7 +10,7 @@ Begin["`Private`"];
 (* geomLine implementation *)
 
 Options[geomLine] = {"data" -> {}, "x" -> Null, "y" -> Null, "group" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, groupbyKeys, output},
+geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, groupbyKeys, output, legendRequests},
   (* Ensure X/Y has been given *)
   If[OptionValue["x"] === Null || OptionValue["y"] === Null, Message[ggplot::xOrYNotGiven]; Throw[Null];];
 
@@ -93,7 +93,63 @@ geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infini
     } &]
   ];
 
-  output
+  (* Create legend requests based on what aesthetics are mapped *)
+  legendRequests = {};
+  
+  (* Check if color is mapped to a variable *)
+  If[OptionValue["color"] =!= Null,
+    Module[{colorMapping, legendTitle, isDiscrete, reconciledDataset, uniqueValues, labels, colors},
+      colorMapping = OptionValue["color"];
+      
+      (* Determine legend title *)
+      legendTitle = If[StringQ[colorMapping], 
+        colorMapping, 
+        "color" (* simplified title for function mappings *)
+      ];
+      
+      (* Use reconcileAesthetics to get the same colors that are being plotted *)
+      reconciledDataset = reconcileAesthetics[OptionValue["data"], colorMapping, "color"];
+      
+      (* Check if this is discrete or continuous *)
+      Module[{originalData},
+        originalData = If[StringQ[colorMapping],
+          OptionValue["data"][[All, colorMapping]],
+          colorMapping /@ OptionValue["data"]
+        ];
+        isDiscrete = isDiscreteDataQ[originalData];
+      ];
+      
+      If[isDiscrete,
+        (* Extract unique values for discrete legend *)
+        uniqueValues = DeleteDuplicates[reconciledDataset, #1["color_aes"] === #2["color_aes"] &];
+        
+        (* Get labels and colors *)
+        labels = If[StringQ[colorMapping],
+          Sort[DeleteDuplicates[reconciledDataset[[All, colorMapping]]]],
+          Sort[DeleteDuplicates[colorMapping /@ OptionValue["data"]]]
+        ];
+        
+        colors = labels /. Association[
+          If[StringQ[colorMapping],
+            (#[colorMapping] -> #["color_aes"]) & /@ uniqueValues,
+            (colorMapping[#] -> #["color_aes"]) & /@ uniqueValues
+          ]
+        ];
+        
+        AppendTo[legendRequests, <|
+          "type" -> "line",
+          "aesthetic" -> "color", 
+          "title" -> legendTitle,
+          "isDiscrete" -> True,
+          "labels" -> labels,
+          "values" -> colors
+        |>];
+      ];
+    ];
+  ];
+
+  (* Return both the graphics output and legend requirements *)
+  <|"graphics" -> output, "legendRequests" -> legendRequests|>
 ];
 
 End[];

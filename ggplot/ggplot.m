@@ -174,7 +174,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   (* Compile all geom information which will create graphics primitives *)
   points      = Cases[heldArgs, geomPoint[opts___]      :> geomPoint[opts,      FilterRules[options, Options[geomPoint]],      "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
-  lines       = Cases[heldArgs, geomLine[opts___]       :> geomLine[opts,       FilterRules[options, Options[geomLine]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
+  linesResult = Cases[heldArgs, geomLine[opts___]       :> geomLine[opts,       FilterRules[options, Options[geomLine]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   paths       = Cases[heldArgs, geomPath[opts___]       :> geomPath[opts,       FilterRules[options, Options[geomPath]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   smoothLines = Cases[heldArgs, geomSmooth[opts___]     :> geomSmooth[opts,     FilterRules[options, Options[geomSmooth]],     "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   abLines     = Cases[heldArgs, geomParityLine[opts___] :> geomParityLine[opts, FilterRules[options, Options[geomParityLine]], "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
@@ -188,6 +188,18 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   texts       = Cases[heldArgs, geomText[opts___]       :> geomText[opts,       FilterRules[options, Options[geomText]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   (* columns need a lot more work to sort through *)
   (*columns     = Cases[{geoms}, geomCol[aesthetics__] :> geomCol[dataset, aesthetics, "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];*)
+
+  (* Extract graphics and legend requests from linesResult *)
+  lines = If[Length[linesResult] > 0 && AssociationQ[First[linesResult]],
+    First[linesResult]["graphics"],
+    linesResult
+  ];
+  
+  (* Collect legend requests from geoms *)
+  geomLegendRequests = If[Length[linesResult] > 0 && AssociationQ[First[linesResult]],
+    Flatten[First[linesResult]["legendRequests"]],
+    {}
+  ];
 
   graphicsPrimitives = {density2D, points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes, errorBands, texts} // Flatten;
 
@@ -219,7 +231,12 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   showLegend = Lookup[options, "showLegend", OptionValue[ggplot, "showLegend"]];
   legendInfo = {};
   If[showLegend === Automatic || showLegend === True,
-    legendInfo = extractLegendInfo[heldArgs, dataset, options];
+    (* Try the new geom-based legend system first *)
+    If[Length[geomLegendRequests] > 0,
+      legendInfo = createLegendFromRequests[geomLegendRequests],
+      (* Fall back to old legend system for other geoms *)
+      legendInfo = extractLegendInfo[heldArgs, dataset, options];
+    ];
   ];
 
   graphic = If[Length[legendInfo] > 0,
@@ -252,7 +269,8 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
         FilterRules[{options}, Options[ListLinePlot]]
       ],
       Placed[
-        Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
+        (* Handle both old and new legend formats *)
+        Row[Join[If[ListQ[legendInfo], legendInfo, convertLegendInfo[legendInfo]], {Spacer[5]}]],
         GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
       ]
     ],
