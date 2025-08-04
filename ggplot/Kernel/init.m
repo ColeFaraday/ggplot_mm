@@ -27,6 +27,7 @@ Get["ggplot`geomErrorBar`"];
 Get["ggplot`geomErrorBoxes`"];
 Get["ggplot`geomErrorBand`"];
 Get["ggplot`geomDensity2DFilled`"];
+Get["ggplot`geomText`"];
 
 Get["ggplot`scale`"];
 Get["ggplot`scaleDate`"];
