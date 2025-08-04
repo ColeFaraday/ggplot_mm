@@ -34,6 +34,8 @@ Get["ggplot`scaleLog`"];
 
 Get["ggplot`legend`"];
 
+Get["ggplot`facetWrap`"];
+
 Get["ggplot`themes`"];
 (* Set default theme *)
 

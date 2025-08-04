@@ -1,6 +1,5 @@
 (* Mathematica Source File *)
-(* Created by Mathematica Plugin for IntelliJ IDEA *)
-(* :Author: andrewyule *)
+(* :Author: colefaraday *)
 (* :Date: 2025-08-01 *)
 
 BeginPackage["ggplot`"];

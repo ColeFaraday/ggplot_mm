@@ -14,6 +14,7 @@ ggplot::shapeContinuous     = "A continuous variable can not be mapped to a shap
 ggplot::shapeCount          = "More than 7 discrete shapes are present, aborting... (this should be fixed)";
 ggplot::errorBarMissingBounds = "geomErrorBar requires all four bounds: xmin, xmax, ymin, ymax";
 ggplot::errorBandMissingBounds = "geomErrorBand requires x, ymin, and ymax";
+ggplot::facetNotImplemented = "Faceting is not yet fully implemented";
 
 validDatasetQ[dataset_] := MatchQ[dataset, {_?AssociationQ..}];
 
@@ -100,7 +101,7 @@ createCombinedLegend[data_] := Module[{
 ];
 
 Attributes[argPatternQ] = {HoldAllComplete};
-argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___]) ...]];
+argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
 
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
@@ -118,12 +119,27 @@ Options[ggplot] = DeleteDuplicates[Join[{
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
-ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic},
+ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo},
   
   heldArgs = Hold[args];
   options = Cases[heldArgs, _Rule, 1];
   dataset = Lookup[options, "data", {}];
   options = Join[options, {"data" -> dataset, "x" -> Lookup[options, "x", Null], "y" -> Lookup[options, "y", Null]}];
+
+  (* Check for faceting *)
+  facetInfo = Cases[heldArgs, facetWrap[opts___] :> facetWrap[opts], {0, Infinity}];
+  Print["Debug ggplot - faceting requested: ", Length[facetInfo] > 0];
+  
+  (* If faceting is requested, handle it specially *)
+  If[Length[facetInfo] > 0,
+    Module[{facetSpec},
+      facetSpec = First[facetInfo];
+      Print["Debug ggplot - creating faceted plot"];
+      
+      (* Create faceted graphics *)
+      Return[createFacetedGraphics[dataset, facetSpec, heldArgs, options]]
+    ]
+  ];
 
   (* Default x and y labels *)
   defaultXLabel = First@Cases[heldArgs, ("x" -> xlbl_) :> ToString[xlbl], {0, Infinity}];

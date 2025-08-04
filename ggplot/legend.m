@@ -1,7 +1,6 @@
 (* Mathematica Source File *)
-(* Created by Mathematica Plugin for IntelliJ IDEA *)
-(* :Author: andrewyule *)
-(* :Date: 2020-05-10 *)
+(* :Author: colefaraday *)
+(* :Date: 2025-08-02 *)
 
 BeginPackage["ggplot`"];
 
@@ -26,7 +25,6 @@ extractLegendInfo[heldArgs_, dataset_, options_] := Module[{legendInfo, colorLeg
   alphaLegend = extractAlphaLegendInfo[heldArgs, dataset, options];
   If[alphaLegend =!= None, legendInfo["alpha"] = alphaLegend];
   
-  
   (* Group legends by their mapped variable (title) to combine multiple aesthetics *)
   groupedLegends = combineLegendsForSameVariable[legendInfo];
   
@@ -35,10 +33,10 @@ extractLegendInfo[heldArgs_, dataset_, options_] := Module[{legendInfo, colorLeg
 
 (* Combine legends that map to the same variable into single combined legends *)
 combineLegendsForSameVariable[legendInfo_] := Module[{groupedByVariable, combinedLegends},
+  
   (* Group legend entries by their mapped variable (title) *)
   groupedByVariable = GroupBy[Normal[legendInfo], #[[2]]["title"] &];
 
-	
   (* For each variable, combine all aesthetics that map to it *)
   combinedLegends = Association[KeyValueMap[Function[{variable, aestheticsForVariable},
     (* If only one aesthetic maps to this variable, keep it as is *)
@@ -48,7 +46,6 @@ combineLegendsForSameVariable[legendInfo_] := Module[{groupedByVariable, combine
       variable -> combineLegendAesthetics[aestheticsForVariable]
     ]
   ], groupedByVariable]];
-
   
   combinedLegends
 ];
@@ -57,13 +54,13 @@ combineLegendsForSameVariable[legendInfo_] := Module[{groupedByVariable, combine
 combineLegendAesthetics[aestheticsForVariable_] := Module[{
   firstEntry, combinedEntry, aesthetics, labels, isAllDiscrete, isAllContinuous
   },
+  
   (* Get the first entry as the base *)
   firstEntry = First[aestheticsForVariable][[2]];
 	
   (* Extract all aesthetic names *)
   aesthetics = #[[1]] & /@ aestheticsForVariable;
 
-	
   (* Check if all entries are the same type *)
   isAllDiscrete = AllTrue[#[[2]]["type"] & /@ aestheticsForVariable, # === "discrete" &];
   isAllContinuous = AllTrue[#[[2]]["type"] & /@ aestheticsForVariable, # === "continuous" &];
@@ -81,7 +78,6 @@ combineLegendAesthetics[aestheticsForVariable_] := Module[{
     (* For now, if types don't match or labels differ, keep the first one *)
     combinedEntry = firstEntry
   ];
-
   
   combinedEntry
 ];
