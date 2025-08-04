@@ -50,6 +50,7 @@ Options[ticks2] = {numberOfMajorTicks2 -> 8, numberOfMinorTicksPerMajorTick2 -> 
 gridLines2::usage            = "TBD";
 majorGridLineStyle2::usage  = "TBD";
 minorGridLineStyle2::usage  = "TBD";
+geomText::usage  = "TBD";
 
 Options[gridLines2] = Options[ticks2];
 
