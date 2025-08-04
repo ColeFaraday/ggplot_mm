@@ -40,67 +40,6 @@ GetScaledCoord["OuterMiddleRight", offset_ : defaultOffset] := {{1 + offset[[1]]
 GetScaledCoord["OuterTopMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 1 + offset[[2]]}, {0.5, 0}};
 GetScaledCoord["OuterBottomMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 0 - offset[[2]]}, {0.5, 1}};
 
-(* Convert legend info to built-in legend functions *)
-convertLegendInfo[legendInfo_] := Module[{legendItems},
-  If[Length[legendInfo] == 0, Return[{}]];
-  
-  legendItems = KeyValueMap[Function[{aesthetic, data},
-    Which[
-      (* Handle combined aesthetics (multiple aesthetics for same variable) *)
-      KeyExistsQ[data, "aesthetics"],
-      createCombinedLegend[data],
-      
-      (* Single aesthetic legends *)
-      data["aesthetic"] === "color" && data["type"] === "discrete",
-      LineLegend[data["values"], data["labels"], LegendLabel -> data["title"]],
-      
-      data["aesthetic"] === "color" && data["type"] === "continuous",
-      (* For continuous color, use BarLegend *)
-      BarLegend[{data["palette"], data["range"]}, LegendLabel -> data["title"]],
-      
-      data["aesthetic"] === "shape" && data["type"] === "discrete",
-      PointLegend[ConstantArray[Black, Length[data["labels"]]], data["labels"], LegendLabel -> data["title"], LegendMarkers->(data[["values"]]/.{ggplotSizePlaceholder->12, ggplotAlphaPlaceholder->Opacity[1.], ggplotColorPlaceholder->Black})],
-      
-      data["aesthetic"] === "size" && data["type"] === "discrete",
-      PointLegend[ConstantArray[Graphics[{Black, Disk[]}], Length[data["labels"]]], data["labels"], 
-        LegendLabel -> data["title"], LegendMarkerSize -> data["values"]],
-      
-      True,
-      (* Fallback to SwatchLegend *)
-      SwatchLegend[data["values"], data["labels"], LegendLabel -> data["title"]]
-    ]
-  ], legendInfo];
-  
-  legendItems
-];
-
-(* Create a combined legend for multiple aesthetics mapping to the same variable *)
-createCombinedLegend[data_] := Module[{
-  aesthetics, labels, colors, shapes, sizes, alphas, markers, legendColors
-  },
-  aesthetics = data["aesthetics"];
-  labels = data["labels"];
-  
-  (* Extract values for each aesthetic *)
-  colors = Lookup[data["values"], "color", ConstantArray[Black, Length[labels]]];
-  shapes = Lookup[data["values"], "shape", ConstantArray[FilledMarkers[][[1]], Length[labels]]];
-  sizes = Lookup[data["values"], "size", ConstantArray[12, Length[labels]]];
-  alphas = Lookup[data["values"], "alpha", ConstantArray[1., Length[labels]]];
-
-  (* Create markers that combine shape, size, and alpha *)
-  markers = MapThread[Function[{shape, size, alpha, color},
-    shape /. {ggplotSizePlaceholder -> size, ggplotAlphaPlaceholder -> Opacity[alpha], ggplotColorPlaceholder -> color}
-  ], {shapes, sizes, alphas, colors}];
-  
-  (* Use colors as the legend colors and shapes/sizes as markers *)
-  PointLegend[colors, labels, 
-    LegendLabel -> data["title"], 
-    LegendMarkers -> markers,
-    LegendMarkerSize -> {50, 45},
-    LegendLayout -> (Column[Row /@ #, Spacings -> -2] &)
-  ]
-];
-
 Attributes[argPatternQ] = {HoldAllComplete};
 argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | geomText[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
 
@@ -231,11 +170,9 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   showLegend = Lookup[options, "showLegend", OptionValue[ggplot, "showLegend"]];
   legendInfo = {};
   If[showLegend === Automatic || showLegend === True,
-    (* Try the new geom-based legend system first *)
+    (* Use the new geom-based legend system *)
     If[Length[geomLegendRequests] > 0,
-      legendInfo = createLegendFromRequests[geomLegendRequests],
-      (* Fall back to old legend system for other geoms *)
-      legendInfo = extractLegendInfo[heldArgs, dataset, options];
+      legendInfo = createLegendFromRequests[geomLegendRequests];
     ];
   ];
 
@@ -269,8 +206,8 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
         FilterRules[{options}, Options[ListLinePlot]]
       ],
       Placed[
-        (* Handle both old and new legend formats *)
-        Row[Join[If[ListQ[legendInfo], legendInfo, convertLegendInfo[legendInfo]], {Spacer[5]}]],
+        (* Use the new legend format directly *)
+        Row[Join[legendInfo, {Spacer[5]}]],
         GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
       ]
     ],
