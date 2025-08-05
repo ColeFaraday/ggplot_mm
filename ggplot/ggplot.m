@@ -102,7 +102,7 @@ createCombinedLegend[data_] := Module[{
 ];
 
 Attributes[argPatternQ] = {HoldAllComplete};
-argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | geomText[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
+argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | geomText[___] | geomConvexHull[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
 
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
@@ -188,10 +188,13 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   errorBands  = Cases[heldArgs, geomErrorBand[opts___]  :> geomErrorBand[opts,  FilterRules[options, Options[geomErrorBand]],  "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   density2D   = Cases[heldArgs, geomDensity2DFilled[opts___] :> geomDensity2DFilled[opts, FilterRules[options, Options[geomDensity2DFilled]], "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   texts       = Cases[heldArgs, geomText[opts___]       :> geomText[opts,       FilterRules[options, Options[geomText]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
+  convexHulls  = Cases[heldArgs, geomConvexHull[opts___]  :> geomConvexHull[opts,  FilterRules[options, Options[geomConvexHull]],  "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   (* columns need a lot more work to sort through *)
   (*columns     = Cases[{geoms}, geomCol[aesthetics__] :> geomCol[dataset, aesthetics, "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];*)
 
-  graphicsPrimitives = {density2D, points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes, errorBands, texts} // Flatten;
+  Print[Options[geomConvexHull]];
+
+  graphicsPrimitives = {density2D, points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes, errorBands, convexHulls, texts} // Flatten;
 
   (* Tick / GridLine functions passed into ggplot FrameTicks -> _ call *)
   With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},

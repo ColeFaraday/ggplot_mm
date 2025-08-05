@@ -54,6 +54,10 @@ geomText::usage  = "TBD";
 
 extractMappedValues::usage = "TBD";
 
+statConvexHull::usage = "TBD";
+geomConvexHull::usage = "TBD";
+statIdentity::usage = "TBD";
+
 
 Options[gridLines2] = Options[ticks2];
 
