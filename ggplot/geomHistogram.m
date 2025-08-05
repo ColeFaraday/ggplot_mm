@@ -32,7 +32,7 @@ geomHistogram[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, I
                 Map[{
                   #[[1, "color_aes"]],
                   #[[1, "alpha_aes"]],
-                  Rectangle@@@createRectangles[#[[All, OptionValue["x"]]], "bspec" -> OptionValue["bspec"], "hspec" -> OptionValue["hspec"], "xScaleFunc" -> OptionValue["xScaleFunc"], "yScaleFunc" -> OptionValue["yScaleFunc"]]
+                  Rectangle@@@createRectangles[extractMappedValues[#, OptionValue["x"]], "bspec" -> OptionValue["bspec"], "hspec" -> OptionValue["hspec"], "xScaleFunc" -> OptionValue["xScaleFunc"], "yScaleFunc" -> OptionValue["yScaleFunc"]]
                 } &];
               
   output

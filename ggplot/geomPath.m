@@ -34,7 +34,7 @@ geomPath[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infini
                 #[[1, "color_aes"]],
                 #[[1, "alpha_aes"]],
                 #[[1, "thickness_aes"]],
-                Line@Map[Function[point, {OptionValue["xScaleFunc"]@point[[1]], OptionValue["yScaleFunc"]@point[[2]]}]]@Transpose[{#[[All, OptionValue["x"]]], #[[All, OptionValue["y"]]]}]
+                Line@Map[Function[point, {OptionValue["xScaleFunc"]@point[[1]], OptionValue["yScaleFunc"]@point[[2]]}]]@Transpose[{extractMappedValues[#, OptionValue["x"]], extractMappedValues[#, OptionValue["y"]]}]
             } &];
 
   output

@@ -28,69 +28,66 @@ geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infini
 
   (* Group the data based on group aesthetic, or fall back to color-based grouping for backward compatibility *)
   groupbyKeys = If[OptionValue["group"] =!= Null,
-    (* Use explicit group aesthetic as primary grouping, but also consider color/alpha/thickness for line segments *)
-    Function[{#["group_aes"], #["color_aes"], #["alpha_aes"], #["thickness_aes"]}],
-    (* Fall back to color-based grouping for backward compatibility *)
-    Function[{#["color_aes"], #["alpha_aes"], #["thickness_aes"]}]
+    Function[{# ["group_aes"], # ["color_aes"], # ["alpha_aes"], # ["thickness_aes"]}],
+    Function[{# ["color_aes"], # ["alpha_aes"], # ["thickness_aes"]}]
   ];
-  
+
   output = If[OptionValue["group"] =!= Null,
-    (* When using group aesthetic, we need special handling to create connected lines within groups *)
-    (* but with different colors/styles for different aesthetic combinations *)
     Module[{groupedData, groupedOutput},
-      (* First group by the primary group aesthetic *)
-      groupedData = GroupBy[newDataset, Function[#["group_aes"]]];
-      
-      (* For each group, create connected line segments with appropriate colors *)
+      groupedData = GroupBy[newDataset, Function[# ["group_aes"]]];
       groupedOutput = Map[Function[groupData,
-        Module[{sortedData, connectedSegments},
-          (* Sort data by x values within each group for proper line connections *)
-          sortedData = SortBy[groupData, Function[row, row[OptionValue["x"]]]];
-          
-          (* Create line segments that connect adjacent points, considering color changes *)
+        Module[{xvals, yvals, pairs, sortedPairs, scaledPairs, connectedSegments},
+          xvals = extractMappedValues[groupData, OptionValue["x"]];
+          yvals = extractMappedValues[groupData, OptionValue["y"]];
+          pairs = Transpose[{xvals, yvals}];
+          sortedPairs = SortBy[pairs, First];
+          scaledPairs = Map[{OptionValue["xScaleFunc"][#[[1]]], OptionValue["yScaleFunc"][#[[2]]]} &, sortedPairs];
           connectedSegments = {};
           Do[
-            If[i < Length[sortedData],
-              Module[{point1, point2, color1, color2, alpha1, alpha2, thickness1, thickness2},
-                point1 = sortedData[[i]];
-                point2 = sortedData[[i + 1]];
+            If[i < Length[scaledPairs],
+              Module[{point1, point2, color1, alpha1, thickness1},
+                point1 = groupData[[Ordering[xvals][[i]]]];
+                point2 = groupData[[Ordering[xvals][[i + 1]]]];
                 color1 = point1["color_aes"];
                 alpha1 = point1["alpha_aes"];
                 thickness1 = point1["thickness_aes"];
-                color2 = point2["color_aes"];
-                alpha2 = point2["alpha_aes"];
-                thickness2 = point2["thickness_aes"];
-                
-                (* Use the color/style of the starting point for each segment *)
                 AppendTo[connectedSegments, {
                   color1,
                   alpha1,
                   thickness1,
-                  Line[{
-                    {OptionValue["xScaleFunc"][point1[OptionValue["x"]]], OptionValue["yScaleFunc"][point1[OptionValue["y"]]]},
-                    {OptionValue["xScaleFunc"][point2[OptionValue["x"]]], OptionValue["yScaleFunc"][point2[OptionValue["y"]]]}
-                  }]
+                  Line[{scaledPairs[[i]], scaledPairs[[i + 1]]}]
                 }]
               ]
             ],
-            {i, Length[sortedData]}
+            {i, Length[scaledPairs]}
           ];
           connectedSegments
         ]
       ], Values[groupedData]];
-      
       Flatten[groupedOutput, 1]
     ],
-    (* Original behavior for non-group cases *)
-    newDataset //
-    GroupBy[groupbyKeys] //
-    Values //
-    Map[{
-        #[[1, "color_aes"]],
-        #[[1, "alpha_aes"]],
-        #[[1, "thickness_aes"]],
-        Line@Map[Function[point, {OptionValue["xScaleFunc"]@point[[1]], OptionValue["yScaleFunc"]@point[[2]]}]]@Sort@Transpose[{#[[All, OptionValue["x"]]], #[[All, OptionValue["y"]]]}]
-    } &]
+    (* Non-group case: group by color/alpha/thickness, then build lines *)
+    Module[{grouped, result},
+      grouped = GroupBy[newDataset, groupbyKeys];
+      result = Values[grouped] // Map[
+        Function[group,
+          Module[{xvals, yvals, pairs, sortedPairs, scaledPairs},
+            xvals = extractMappedValues[group, OptionValue["x"]];
+            yvals = extractMappedValues[group, OptionValue["y"]];
+            pairs = Transpose[{xvals, yvals}];
+            sortedPairs = SortBy[pairs, First];
+            scaledPairs = Map[{OptionValue["xScaleFunc"][#[[1]]], OptionValue["yScaleFunc"][#[[2]]]} &, sortedPairs];
+            {
+              group[[1, "color_aes"]],
+              group[[1, "alpha_aes"]],
+              group[[1, "thickness_aes"]],
+              Line[scaledPairs]
+            }
+          ]
+        ]
+      ];
+      result
+    ]
   ];
 
   output
