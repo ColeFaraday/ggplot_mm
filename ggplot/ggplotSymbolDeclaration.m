@@ -52,6 +52,9 @@ majorGridLineStyle2::usage  = "TBD";
 minorGridLineStyle2::usage  = "TBD";
 geomText::usage  = "TBD";
 
+extractMappedValues::usage = "TBD";
+
+
 Options[gridLines2] = Options[ticks2];
 
 (* Faceting *)

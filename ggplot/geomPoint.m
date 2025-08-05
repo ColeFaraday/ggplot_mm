@@ -32,8 +32,8 @@ geomPoint[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infin
       colorDir = row["color_aes"];
       alphaDir = row["alpha_aes"];
       sizeDir = row["size_aes"];
-      pos = {OptionValue["xScaleFunc"][row[OptionValue["x"]]], OptionValue["yScaleFunc"][row[OptionValue["y"]]]};
-      
+      pos = {OptionValue["xScaleFunc"][extractMappedValues[{row}, OptionValue["x"]][[1]]], OptionValue["yScaleFunc"][extractMappedValues[{row}, OptionValue["y"]][[1]]]};
+
       (* Check if shape has placeholder variables (from FilledMarkers[] or similar) *)
       If[StringContainsQ[ToString[shapeObj], "ggplotColorPlaceholder"],
         (* For markers with placeholders, substitute the actual values *)

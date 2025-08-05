@@ -35,15 +35,16 @@ geomSmooth[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infi
         #[[1, "alpha_aes"]],
         #[[1, "thickness_aes"]],
         (* IMPORTANT NOTE: according to ggplot2 in R, statistics transforms occur AFTER the scaling changes *)
-        Line@lmFit@Map[Function[point, {OptionValue["xScaleFunc"]@point[[1]], OptionValue["yScaleFunc"]@point[[2]]}]]@Sort@Transpose[{#[[All, OptionValue["x"]]], #[[All, OptionValue["y"]]]}]
+        Line@lmFit@Map[Function[point, {OptionValue["xScaleFunc"]@point[[1]], OptionValue["yScaleFunc"]@point[[2]]}]]@Sort@Transpose[{extractMappedValues[#, OptionValue["x"]], extractMappedValues[#, OptionValue["y"]]}]
       } &];
 
   output
 ];
 
-lmFit[data_] := Block[{x, f, results},
+lmFit[data_] := Block[{x, f, results, xvals},
   f = LinearModelFit[data, x, x];
-  results = Table[{x, f[x]}, {x, data[[All, 1]]}];
+  xvals = data[[All, 1]];
+  results = Table[{xval, f[xval]}, {xval, xvals}];
   results
 ];
 
