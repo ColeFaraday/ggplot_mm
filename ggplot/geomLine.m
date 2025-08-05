@@ -96,55 +96,61 @@ geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infini
   (* Create legend requests based on what aesthetics are mapped *)
   legendRequests = {};
   
-  (* Check if color is mapped to a variable *)
-  If[OptionValue["color"] =!= Null,
-    Module[{colorMapping, legendTitle, isDiscrete, reconciledDataset, uniqueValues, labels, colors},
-      colorMapping = OptionValue["color"];
+  (* Loop through all aesthetics that could be mapped to variables *)
+  Module[{aesthetics, aestheticName, aestheticMapping, legendTitle, isDiscrete, reconciledDataset, uniqueValues, labels, values},
+    aesthetics = {"color", "alpha", "thickness", "group"}; (* dashing excluded due to Graphics bug *)
+    
+    Do[
+      aestheticMapping = OptionValue[aestheticName];
       
-      (* Determine legend title *)
-      legendTitle = If[StringQ[colorMapping], 
-        colorMapping, 
-        "color" (* simplified title for function mappings *)
-      ];
-      
-      (* Use reconcileAesthetics to get the same colors that are being plotted *)
-      reconciledDataset = reconcileAesthetics[OptionValue["data"], colorMapping, "color"];
-      
-      (* Check if this is discrete or continuous *)
-      Module[{originalData},
-        originalData = If[StringQ[colorMapping],
-          OptionValue["data"][[All, colorMapping]],
-          colorMapping /@ OptionValue["data"]
-        ];
-        isDiscrete = isDiscreteDataQ[originalData];
-      ];
-      
-      If[isDiscrete,
-        (* Extract unique values for discrete legend *)
-        uniqueValues = DeleteDuplicates[reconciledDataset, #1["color_aes"] === #2["color_aes"] &];
-        
-        (* Get labels and colors *)
-        labels = If[StringQ[colorMapping],
-          Sort[DeleteDuplicates[reconciledDataset[[All, colorMapping]]]],
-          Sort[DeleteDuplicates[colorMapping /@ OptionValue["data"]]]
+      (* Only create legend if aesthetic is mapped to a variable (not Null or direct value) *)
+      If[aestheticMapping =!= Null && (StringQ[aestheticMapping] || Head[aestheticMapping] === Function),
+        (* Determine legend title *)
+        legendTitle = If[StringQ[aestheticMapping], 
+          aestheticMapping, 
+          aestheticName (* simplified title for function mappings *)
         ];
         
-        colors = labels /. Association[
-          If[StringQ[colorMapping],
-            (#[colorMapping] -> #["color_aes"]) & /@ uniqueValues,
-            (colorMapping[#] -> #["color_aes"]) & /@ uniqueValues
-          ]
+        (* Use reconcileAesthetics to get the same values that are being plotted *)
+        reconciledDataset = reconcileAesthetics[OptionValue["data"], aestheticMapping, aestheticName];
+        
+        (* Check if this is discrete or continuous *)
+        Module[{originalData},
+          originalData = If[StringQ[aestheticMapping],
+            OptionValue["data"][[All, aestheticMapping]],
+            aestheticMapping /@ OptionValue["data"]
+          ];
+          isDiscrete = isDiscreteDataQ[originalData];
         ];
         
-        AppendTo[legendRequests, <|
-          "type" -> "line",
-          "aesthetic" -> "color", 
-          "title" -> legendTitle,
-          "isDiscrete" -> True,
-          "labels" -> labels,
-          "values" -> colors
-        |>];
-      ];
+        If[isDiscrete,
+          (* Extract unique values for discrete legend *)
+          uniqueValues = DeleteDuplicates[reconciledDataset, #1[aestheticName <> "_aes"] === #2[aestheticName <> "_aes"] &];
+          
+          (* Get labels and aesthetic values *)
+          labels = If[StringQ[aestheticMapping],
+            Sort[DeleteDuplicates[reconciledDataset[[All, aestheticMapping]]]],
+            Sort[DeleteDuplicates[aestheticMapping /@ OptionValue["data"]]]
+          ];
+          
+          values = labels /. Association[
+            If[StringQ[aestheticMapping],
+              (#[aestheticMapping] -> #[aestheticName <> "_aes"]) & /@ uniqueValues,
+              (aestheticMapping[#] -> #[aestheticName <> "_aes"]) & /@ uniqueValues
+            ]
+          ];
+          
+          AppendTo[legendRequests, <|
+            "type" -> "line",
+            "aesthetic" -> aestheticName, 
+            "title" -> legendTitle,
+            "isDiscrete" -> True,
+            "labels" -> labels,
+            "values" -> values
+          |>];
+        ];
+      ],
+      {aestheticName, aesthetics}
     ];
   ];
 

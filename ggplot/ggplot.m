@@ -112,7 +112,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
 
   (* Compile all geom information which will create graphics primitives *)
-  points      = Cases[heldArgs, geomPoint[opts___]      :> geomPoint[opts,      FilterRules[options, Options[geomPoint]],      "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
+  pointsResult = Cases[heldArgs, geomPoint[opts___]      :> geomPoint[opts,      FilterRules[options, Options[geomPoint]],      "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   linesResult = Cases[heldArgs, geomLine[opts___]       :> geomLine[opts,       FilterRules[options, Options[geomLine]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   paths       = Cases[heldArgs, geomPath[opts___]       :> geomPath[opts,       FilterRules[options, Options[geomPath]],       "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
   smoothLines = Cases[heldArgs, geomSmooth[opts___]     :> geomSmooth[opts,     FilterRules[options, Options[geomSmooth]],     "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];
@@ -128,17 +128,28 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   (* columns need a lot more work to sort through *)
   (*columns     = Cases[{geoms}, geomCol[aesthetics__] :> geomCol[dataset, aesthetics, "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];*)
 
-  (* Extract graphics and legend requests from linesResult *)
+  (* Extract graphics and legend requests from results *)
+  points = If[Length[pointsResult] > 0 && AssociationQ[First[pointsResult]],
+    First[pointsResult]["graphics"],
+    pointsResult
+  ];
+  
   lines = If[Length[linesResult] > 0 && AssociationQ[First[linesResult]],
     First[linesResult]["graphics"],
     linesResult
   ];
   
-  (* Collect legend requests from geoms *)
-  geomLegendRequests = If[Length[linesResult] > 0 && AssociationQ[First[linesResult]],
-    Flatten[First[linesResult]["legendRequests"]],
-    {}
-  ];
+  (* Collect legend requests from all geoms *)
+  geomLegendRequests = Flatten[{
+    If[Length[pointsResult] > 0 && AssociationQ[First[pointsResult]],
+      First[pointsResult]["legendRequests"],
+      {}
+    ],
+    If[Length[linesResult] > 0 && AssociationQ[First[linesResult]],
+      First[linesResult]["legendRequests"],
+      {}
+    ]
+  }];
 
   graphicsPrimitives = {density2D, points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes, errorBands, texts} // Flatten;
 
