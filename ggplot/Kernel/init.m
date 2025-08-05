@@ -33,6 +33,7 @@ Get["ggplot`geomText`"];
 Get["ggplot`scale`"];
 Get["ggplot`scaleDate`"];
 Get["ggplot`scaleLog`"];
+Get["ggplot`statIdentity`"];
 
 Get["ggplot`legend`"];
 

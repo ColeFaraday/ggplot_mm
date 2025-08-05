@@ -53,6 +53,7 @@ minorGridLineStyle2::usage  = "TBD";
 geomText::usage  = "TBD";
 
 extractMappedValues::usage = "TBD";
+statIdentity::usage = "TBD";
 
 
 Options[gridLines2] = Options[ticks2];
