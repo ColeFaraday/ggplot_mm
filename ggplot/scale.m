@@ -23,13 +23,39 @@ reconcileYScales[___] := "Linear";
 
 (* Logic to determine if a scale needs to be discrete *)
 (* Note: only looks for NumericQ.. to validate discrete data or not. TODO: improve this*)
+(* Helper to extract the first variable name from a function mapping, using string pattern matching to avoid unscoped slot errors *)
+extractFirstSlotVariable[func_] := Module[{var = Null, str},
+    Quiet[
+        str = ToString[Unevaluated[func], InputForm];
+        (* Try to match Slot["name"] *)
+        var = StringCases[str, "Slot[\"" ~~ v__ ~~ "\"]" :> v];
+        If[var =!= {} && StringQ[First[var]], Return[First[var]]];
+        (* Try to match Slot[n] *)
+        var = StringCases[str, "Slot[" ~~ v:NumberString ~~ "]" :> v];
+        If[var =!= {} && StringQ[First[var]], Return[First[var]]];
+        (* Try to extract from Function[{row}, ...] style *)
+        var = FirstCase[Hold[func], HoldPattern[Function[{row_}, body_]] :> (First@Cases[body, row[sym_String] :> sym, Infinity]), Null, Infinity];
+        var
+    ]
+];
+
 Attributes[discreteScaleQ] = {HoldAll};
 discreteScaleQ[xOrY_, args___] /; Count[args, (xOrY -> _), Infinity] == 0 := False; (* Catch all for situations like geomHistogram where y may not be given. TODO: make this more robust*)
-discreteScaleQ[xOrY_, args___] := Module[{dataset, key, discreteQ},
+discreteScaleQ[xOrY_, args___] := Module[{dataset, key, discreteQ, varName},
     dataset = First@Cases[args, ("data" -> ds_) :> ds, Infinity];
     dataset = Replace[dataset, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
     key = First@Cases[args, (xOrY -> val_) :> val, Infinity];
-    discreteQ = !MatchQ[dataset[[All, key]], {_?NumericQ..}];
+    varName = Null;
+    If[StringQ[key],
+        (* String mapping, check as before *)
+        discreteQ = !MatchQ[dataset[[All, key]], {_?NumericQ..}],
+        (* Function mapping: robustly extract first variable used *)
+        varName = extractFirstSlotVariable[key];
+        If[StringQ[varName] && KeyExistsQ[First[dataset], varName],
+            discreteQ = !MatchQ[dataset[[All, varName]], {_?NumericQ..}],
+            discreteQ = False
+        ]
+    ];
     discreteQ
 ];
 

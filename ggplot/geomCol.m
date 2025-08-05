@@ -22,8 +22,8 @@ geomCol[dataset_?ListQ, aesthetics : OptionsPattern[]] := Module[{newDataset, gr
 
   (*Grab the rectangles and for each apply the correct aesthetic*)
   output = newDataset // Map[{
-    #["color_aes"],
-    Rectangle[{#[OptionValue["x"]] - 0.05, 0}, {#[OptionValue["x"]] + 0.05 , #[OptionValue["y"]]}]
+    # ["color_aes"],
+    Rectangle[{extractMappedValues[{#}, OptionValue["x"]][[1]] - 0.05, 0}, {extractMappedValues[{#}, OptionValue["x"]][[1]] + 0.05 , extractMappedValues[{#}, OptionValue["y"]][[1]]}]
   } &];
 
   (*output = output // ReverseSortBy[#[[&]*)

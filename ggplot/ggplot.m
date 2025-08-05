@@ -159,6 +159,8 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   xScaleType = reconcileXScales[heldArgs]; (* returns Discrete / Linear / Date / Log / Log10 / Log2 *)
   yScaleType = reconcileYScales[heldArgs]; (* returns Discrete / Linear / Date / Log / Log10 / Log2 *)
 
+  Print[xScaleType];
+
   (* Creating scaling functions to use for x and y *)
   xScaleFunc = If[xScaleType == "Discrete",
     createDiscreteScaleFunc["x", heldArgs],
@@ -190,9 +192,6 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   (*columns     = Cases[{geoms}, geomCol[aesthetics__] :> geomCol[dataset, aesthetics, "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}];*)
 
   graphicsPrimitives = {density2D, points, lines, paths, smoothLines, abLines, hLines, vLines, histograms, errorBars, errorBoxes, errorBands, texts} // Flatten;
-
-  Print[texts];
-  Print[points];
 
   (* Tick / GridLine functions passed into ggplot FrameTicks -> _ call *)
   With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},
@@ -288,6 +287,14 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   graphic
 ]];
+
+(* Helper to extract mapped values for x, y, or any mapping (string or function) *)
+extractMappedValues[data_, mapping_] := 
+  Which[
+    StringQ[mapping], data[[All, mapping]],
+    Head[mapping] === Function, mapping /@ data,
+    True, Nothing
+  ];
 
 End[];
 

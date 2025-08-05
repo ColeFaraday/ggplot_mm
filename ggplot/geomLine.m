@@ -27,15 +27,27 @@ geomLine[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infini
 
   (* Group the data based on their aesthetic keys and then apply correct aesthetics while making a line primitive *)
   groupbyKeys = Function[{#["color_aes"], #["alpha_aes"], #["thickness_aes"]}];
+  
   output =  newDataset //
             GroupBy[groupbyKeys] //
             Values //
-            Map[{
-                #[[1, "color_aes"]],
-                #[[1, "alpha_aes"]],
-                #[[1, "thickness_aes"]],
-                Line@Map[Function[point, {OptionValue["xScaleFunc"]@point[[1]], OptionValue["yScaleFunc"]@point[[2]]}]]@Sort@Transpose[{#[[All, OptionValue["x"]]], #[[All, OptionValue["y"]]]}]
-            } &];
+            Map[
+                Function[group,
+                    Module[{xvals, yvals, pairs, sortedPairs, scaledPairs},
+                        xvals = extractMappedValues[group, OptionValue["x"]];
+                        yvals = extractMappedValues[group, OptionValue["y"]];
+                        pairs = Transpose[{xvals, yvals}];
+                        sortedPairs = SortBy[pairs, First];
+                        scaledPairs = Map[{OptionValue["xScaleFunc"][#[[1]]], OptionValue["yScaleFunc"][#[[2]]]} &, sortedPairs];
+                        {
+                            group[[1, "color_aes"]],
+                            group[[1, "alpha_aes"]],
+                            group[[1, "thickness_aes"]],
+                            Line[scaledPairs]
+                        }
+                    ]
+                ]
+            ];
 
   output
 ];
