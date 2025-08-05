@@ -423,3 +423,271 @@ Heavy use of functional programming patterns (`Map`, `GroupBy`, `Cases`, `Select
 - Check aesthetic mapping with edge cases
 
 This architecture provides a flexible foundation that closely mirrors the grammar of graphics while leveraging Wolfram Language's strengths in symbolic computation and graphics generation.
+
+---
+
+## Detailed Component Interaction Analysis
+
+### System Architecture Overview
+
+The ggplot system follows a layered architecture with clear separation of concerns:
+
+```
+User Input → ggplot.m (orchestrator) → {Aesthetics, Geoms, Scales, Legends, Facets} → Graphics Output
+```
+
+### Component Interactions
+
+#### **A. ggplot.m as Central Orchestrator**
+
+The main `ggplot` function acts as the central coordinator that:
+
+1. **Parses arguments** using pattern matching to extract:
+   - Dataset (`"data" -> {}`)
+   - Aesthetic mappings (`"x" -> "variable"`, `"color" -> "category"`)
+   - Geom specifications (`geomPoint[]`, `geomLine[]`)
+   - Scale functions (`scaleXLog2[]`)
+   - Faceting requests (`facetWrap[]`)
+
+2. **Creates scaling functions** by calling:
+   - `reconcileXScales[heldArgs]` and `reconcileYScales[heldArgs]`
+   - `createDiscreteScaleFunc[]` for categorical data
+   - Scale functions transform data coordinates to plot coordinates
+
+3. **Processes each geom** by:
+   - Passing the dataset, aesthetics, and scale functions to each geom
+   - Each geom returns graphics primitives that are collected into `graphicsPrimitives`
+
+4. **Generates legends** by calling `extractLegendInfo[]` and `convertLegendInfo[]`
+
+5. **Handles faceting** by delegating to `createFacetedGraphics[]`
+
+#### **B. Aesthetic System (`reconcileAesthetics`)**
+
+The aesthetic system is implemented through a **dispatch pattern** where `reconcileAesthetics[dataset, mapping, aestheticType]` has multiple definitions:
+
+**For each aesthetic (color, shape, size, alpha, group):**
+
+```wolfram
+(* Handle null/missing values *)
+reconcileAesthetics[dataset_, Null, "color"] := (* Default color *)
+
+(* Handle constant values *)
+reconcileAesthetics[dataset_, color_?ColorQ, "color"] := (* Fixed color for all points *)
+
+(* Handle column mappings *)
+reconcileAesthetics[dataset_, key_?StringQ, "color"] := (* Map from data column *)
+
+(* Handle function mappings *)
+reconcileAesthetics[dataset_, func_Function, "color"] := (* Apply function to determine color *)
+```
+
+**Key Process:**
+1. Each geom calls `reconcileAesthetics` for every aesthetic it supports
+2. The function adds `"aesthetic_aes"` columns to the dataset (e.g., `"color_aes"`, `"size_aes"`)
+3. These columns contain the actual visual values (colors, sizes, shapes) that will be used in rendering
+
+#### **C. Geom System**
+
+Each geom follows a **consistent pattern**:
+
+```wolfram
+Options[geomX] = {"data" -> {}, "x" -> Null, "y" -> Null, (* aesthetic options *), "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+
+geomX[opts : OptionsPattern[]] := Module[{newDataset, output},
+  (* 1. Validate required aesthetics *)
+  If[OptionValue["x"] === Null || OptionValue["y"] === Null, Message[ggplot::xOrYNotGiven]; Throw[Null];];
+  
+  (* 2. Get dataset *)
+  newDataset = OptionValue["data"];
+  
+  (* 3. Apply aesthetic reconciliation *)
+  newDataset = reconcileAesthetics[newDataset, OptionValue["color"], "color"];
+  newDataset = reconcileAesthetics[newDataset, OptionValue["size"], "size"];
+  (* ... other aesthetics ... *)
+  
+  (* 4. Generate graphics primitives *)
+  output = newDataset // Map[Function[row, 
+    (* Create graphics primitives using row data and scale functions *)
+  ]];
+  
+  output
+]
+```
+
+#### **D. Legend System**
+
+The legend system operates in **three phases**:
+
+1. **Extraction**: `extractLegendInfo[]` scans the held arguments to find aesthetic mappings
+2. **Reconciliation**: Uses the same `reconcileAesthetics` functions to ensure legend colors/shapes match the plot
+3. **Grouping**: `combineLegendsForSameVariable[]` merges legends when multiple aesthetics map to the same variable
+
+#### **E. Faceting System**
+
+Faceting creates multiple subplot panels by:
+1. **Detecting facet requests** in `ggplot.m`
+2. **Splitting the dataset** by faceting variable
+3. **Creating separate plots** for each facet with consistent scales
+4. **Arranging subplots** in a grid layout
+
+#### **F. Scale System**
+
+Scales handle coordinate transformations:
+1. **Scale detection**: `reconcileXScales` and `reconcileYScales` determine if data is discrete, continuous, date, or log
+2. **Function creation**: Scale functions transform data values to plot coordinates
+3. **Tick/grid generation**: Scales also control axis ticks and grid lines
+
+### Current Issues and Inconsistencies
+
+#### **A. Aesthetic System Issues**
+
+1. **Inconsistent Discrete/Continuous Detection**
+   - Each aesthetic file has its own logic for determining if data is discrete
+   - `isDiscreteDataQ` exists in `aes.m` but isn't consistently used across all aesthetics
+   - **Example**: Shape aesthetic rejects continuous data, but size aesthetic handles both
+
+2. **Redundant Code Patterns**
+   - Similar logic repeated across `aesColor.m`, `aesSize.m`, `aesShape.m`, `aesAlpha.m`
+   - Each file implements its own discrete value sorting and mapping
+
+3. **Faceting Compatibility Issues**
+   - Aesthetic functions check for existing `"*_aes"` columns to avoid overwrites
+   - This suggests fragility in how faceting interacts with aesthetics
+
+#### **B. Legend System Issues**
+
+1. **Complex Legend Combination Logic**
+   - The system tries to combine multiple aesthetics mapping to the same variable
+   - This logic is complex and may not handle edge cases well
+   - Limited support for continuous legends (only color is well-supported)
+
+2. **Inconsistent Legend Extraction**
+   - Legend extraction reimplements aesthetic logic instead of reusing `reconcileAesthetics`
+   - This creates potential for legends to not match actual plot appearance
+
+#### **C. Geom System Issues**
+
+1. **Code Duplication**
+   - Every geom has similar boilerplate for validation, aesthetic reconciliation
+   - No shared base class or common functionality
+
+2. **Complex Grouping Logic in geomLine**
+   - `geomLine` has especially complex logic for handling group aesthetics
+   - The grouping logic tries to handle both explicit groups and color-based grouping
+   - This creates maintenance challenges and potential bugs
+
+#### **D. Scale System Issues**
+
+1. **Limited Scale Types**
+   - Only supports discrete, linear, log, and date scales
+   - No support for custom scale transformations
+
+2. **Discrete Scale Limitations**
+   - Discrete scales use integer mappings which may not be optimal for all use cases
+   - Limited control over discrete scale ordering
+
+#### **E. Error Handling Issues**
+
+1. **Inconsistent Error Messages**
+   - Some functions use `Message[]` + `Throw[]`, others use `Echo[]` + `Throw[]`
+   - Error messages are defined globally but not consistently used
+
+2. **Limited Validation**
+   - Minimal input validation beyond basic type checking
+   - No validation of data consistency across aesthetics
+
+### Areas for Improvement
+
+#### **A. Aesthetic System Refactoring**
+
+1. **Create Common Base Functions**
+   ```wolfram
+   (* Centralized discrete/continuous detection *)
+   determineAestheticType[data_] := (* consistent logic *)
+   
+   (* Common mapping function *)
+   mapAestheticValues[data_, type_, palette_] := (* reusable mapping *)
+   ```
+
+2. **Standardize Aesthetic Patterns**
+   - Create a common template for aesthetic implementations
+   - Reduce code duplication by extracting shared functionality
+
+#### **B. Legend System Improvements**
+
+1. **Simplify Legend Logic**
+   - Reuse `reconcileAesthetics` for legend creation instead of reimplementing
+   - Standardize continuous legend support across all aesthetics
+
+2. **Better Legend Positioning**
+   - More flexible legend positioning options
+   - Automatic legend sizing based on content
+
+#### **C. Geom System Enhancements**
+
+1. **Create Geom Base Class**
+   ```wolfram
+   createGeomBase[geomName_, requiredAesthetics_, optionalAesthetics_] := 
+     (* Generate common boilerplate *)
+   ```
+
+2. **Simplify Group Handling**
+   - Extract grouping logic into shared functions
+   - Standardize how all geoms handle group aesthetics
+
+#### **D. Scale System Expansion**
+
+1. **Add More Scale Types**
+   - Custom transformation functions
+   - Reverse scales
+   - Binned scales for continuous data
+
+2. **Improve Discrete Scales**
+   - Better control over ordering
+   - Support for missing values
+   - More flexible label formatting
+
+#### **E. Error Handling Standardization**
+
+1. **Consistent Error Patterns**
+   ```wolfram
+   validateRequired[opts_, required_] := (* standard validation *)
+   throwError[message_] := (* standard error throwing *)
+   ```
+
+2. **Better User Feedback**
+   - More descriptive error messages
+   - Suggestions for fixing common issues
+
+#### **F. Performance Optimizations**
+
+1. **Reduce Data Copying**
+   - Current system creates many intermediate dataset copies
+   - Optimize aesthetic reconciliation to minimize copying
+
+2. **Lazy Evaluation**
+   - Only compute aesthetics that are actually used
+   - Cache expensive computations like color palette generation
+
+### Recommended Architecture Changes
+
+1. **Extract Common Interfaces**
+   - Define standard interfaces for aesthetics, geoms, and scales
+   - This would improve consistency and enable easier extension
+
+2. **Implement Plugin Architecture**
+   - Allow easy addition of new geoms, aesthetics, and scales
+   - Standardize the registration and discovery of new components
+
+3. **Add Configuration Management**
+   - Better theme system with inheritance
+   - Global configuration that's easier to modify and extend
+
+4. **Improve Data Pipeline**
+   - More explicit data flow with better intermediate representations
+   - Reduce the complexity of the main ggplot orchestration function
+
+### Summary
+
+The current system works but shows signs of organic growth without sufficient refactoring. The core concepts are sound, but implementation consistency and maintainability could be significantly improved through the architectural changes outlined above. The dispatch-based aesthetic system is elegant but needs standardization, and the geom system would benefit from reduced duplication and shared functionality.

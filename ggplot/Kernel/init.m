@@ -13,6 +13,7 @@ Get["ggplot`aesSize`"];
 Get["ggplot`aesAlpha`"];
 Get["ggplot`aesShape`"];
 Get["ggplot`aesThickness`"];
+Get["ggplot`aesGroup`"];
 
 Get["ggplot`geomPoint`"];
 Get["ggplot`geomLine`"];
