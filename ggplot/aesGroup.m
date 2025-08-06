@@ -16,11 +16,6 @@ reconcileAesthetics[dataset_, Null, "group"] := Module[{newDataset},
 reconcileAesthetics[dataset_, key_?StringQ, "group"] /; keyExistsQAll[dataset, key] := Module[{newDataset},
   newDataset = dataset;
   
-  (* If group_aes already exists, don't override it (for faceting compatibility) *)
-  If[KeyExistsQ[First[newDataset], "group_aes"],
-    Return[newDataset]
-  ];
-  
   (* Simply use the column values as group identifiers *)
   newDataset = newDataset // Map[Append[#, "group_aes" -> #[key]] &];
   newDataset
@@ -30,11 +25,6 @@ reconcileAesthetics[dataset_, key_?StringQ, "group"] /; keyExistsQAll[dataset, k
 reconcileAesthetics[dataset_, func_Function, "group"] := Module[{newDataset},
   newDataset = dataset;
   
-  (* If group_aes already exists, don't override it (for faceting compatibility) *)
-  If[KeyExistsQ[First[newDataset], "group_aes"],
-    Return[newDataset]
-  ];
-  
   (* Apply the function to each row to determine group membership *)
   newDataset = newDataset // Map[Append[#, "group_aes" -> func[#]] &];
   newDataset
@@ -43,11 +33,6 @@ reconcileAesthetics[dataset_, func_Function, "group"] := Module[{newDataset},
 (* If a direct value is passed in, use it as the group for all rows *)
 reconcileAesthetics[dataset_, value_, "group"] := Module[{newDataset},
   newDataset = dataset;
-  
-  (* If group_aes already exists, don't override it (for faceting compatibility) *)
-  If[KeyExistsQ[First[newDataset], "group_aes"],
-    Return[newDataset]
-  ];
   
   (* All rows get the same group value *)
   newDataset = newDataset // Map[Append[#, "group_aes" -> value] &];

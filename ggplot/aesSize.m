@@ -1,10 +1,7 @@
 (* Mathem(* Default function if size is not being used as an aesthetic *)
 reconcileAesthetics[dataset_, Null, "size"] := Module[{newDataset},
   newDataset = dataset;
-  (* Only add size_aes if it doesn't already exist (for faceting compatibility) *)
-  If[!KeyExistsQ[First[newDataset], "size_aes"],
-    newDataset = newDataset // Map[Append[#, "size_aes" -> 12] &]
-  ];
+  newDataset = newDataset // Map[Append[#, "size_aes" -> 12] &];
   newDataset
 ];Source File *)
 (* Created by Mathematica Plugin for IntelliJ IDEA *)
