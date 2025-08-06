@@ -128,13 +128,9 @@ ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, processedData, allMappings, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo, layers, facetSpec, facetResult, globalScales, panelGraphics, allLegendData},
   
-  Print["[ggplot] Starting new pipeline"];
   heldArgs = Hold[args];
-  Print["[ggplot] heldArgs length:", Length[Unevaluated[args]]];
   options = Cases[heldArgs, _Rule, 1];
-  Print["[ggplot] options count:", Length[options]];
   dataset = Lookup[options, "data", {}];
-  Print["[ggplot] dataset length:", Length[dataset]];
 
   (* Extract layers (geom constructors) *)
   layers = Cases[heldArgs, 
@@ -144,52 +140,34 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
      geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
     {0, Infinity}
   ];
-  Print["[ggplot] layers found:", Length[layers], " layers"];
-  Print["[ggplot] layer types:", Head /@ layers];
 
   (* Extract facet specification *)
   facetSpec = Cases[heldArgs, facetWrap[variable_, opts___] :> facetWrap[variable, opts], {0, Infinity}];
-  Print["[ggplot] facetWrap cases found:", Length[facetSpec]];
   facetSpec = If[Length[facetSpec] > 0, First[facetSpec], facetIdentity[]];
-  Print["[ggplot] facetSpec head:", Head[facetSpec]];
 
   (* 0. Global aesthetic reconciliation before faceting *)
-  Print["[ggplot] Step 0: Global aesthetic reconciliation"];
   processedData = dataset;
-  Print["[ggplot] Initial dataset length:", Length[processedData]];
   
   (* Collect only global aesthetic mappings *)
   allMappings = collectGlobalAestheticMappings[options];
 
   (* Apply aesthetic reconciliation globally *)
   processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
-  Print[processedData[[1]]];
   processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
   processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
   processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
   processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
   processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
-  Print["[ggplot] After global aesthetic reconciliation, data length:", Length[processedData]];
-
-  Print[processedData[[1]]];
 
   (* 1. Apply faceting to get panel specifications *)
-  Print["[ggplot] Step 1: Applying faceting"];
   facetResult = If[facetSpec === facetIdentity[], 
-    Print["[ggplot] Using identity facet"];
     <|"type" -> "identity", "panels" -> <|"single" -> processedData|>|>,
-    Print["[ggplot] Calling facet function"];
     facetSpec[processedData]  (* Facet function transforms the data *)
   ];
-  Print["[ggplot] facetResult type:", facetResult["type"]];
-  Print["[ggplot] facetResult panels keys:", Keys[facetResult["panels"]]];
-  Print["[ggplot] facetResult:", facetResult];
 
   (* 2. Compute global scales for consistency across panels *)
-  Print["[ggplot] Step 2: Computing global scales"];
   defaultXLabel = First@Cases[heldArgs, ("x" -> x_) :> ToString[x], {0, Infinity}];
   defaultYLabel = Quiet[Check[First@Cases[heldArgs, ("y" -> y_) :> ToString[y], {0, Infinity}], ""]];
-  Print["[ggplot] labels - x:", defaultXLabel, ", y:", defaultYLabel];
   frameLabel = Lookup[options, FrameLabel, OptionValue[ggplot, FrameLabel]];
   frameLabel = Which[
     frameLabel === Automatic,
@@ -199,11 +177,9 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     True,
     frameLabel
   ];
-  Print["[ggplot] frameLabel head:", Head[frameLabel]];
 
   xScaleType = reconcileXScales[heldArgs];
   yScaleType = reconcileYScales[heldArgs];
-  Print["[ggplot] scale types - x:", xScaleType, ", y:", yScaleType];
 
   xScaleFunc = If[xScaleType == "Discrete",
     createDiscreteScaleFunc["x", heldArgs],
@@ -213,48 +189,37 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     createDiscreteScaleFunc["y", heldArgs],
     With[{f = ToExpression[yScaleType /. "Linear" | "Date" -> "Identity"]}, Function[f[#]]]
   ];
-  Print["[ggplot] scale functions created"];
 
-  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]; Print["[ggplot] xDiscreteLabels length:", Length[xDiscreteLabels]]];
-  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]; Print["[ggplot] yDiscreteLabels length:", Length[yDiscreteLabels]]];
+  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
+  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
 
   globalScales = <|
     "xScaleFunc" -> xScaleFunc, 
     "yScaleFunc" -> yScaleFunc
   |>;
-  Print["[ggplot] globalScales created"];
+  
 
   (* 3. Process each panel through stat→geom pipeline *)
-  Print["[ggplot] Step 3: Processing panels"];
   {panelGraphics, allLegendData} = Reap[
     KeyValueMap[
       Function[{panelKey, panelData},
-        Print["[ggplot] Processing panel:", panelKey, ", data length:", Length[panelData]];
         processPanelLayers[panelData, layers, globalScales, options]
       ],
       facetResult["panels"]
     ]
   ];
-  Print["[ggplot] panelGraphics length:", Length[panelGraphics]];
-  Print["[ggplot] panelGraphics heads:", Head /@ panelGraphics];
-  Print["[ggplot] panelGraphics:", panelGraphics];
 
   (* 4. Generate legends - placeholder for now *)
-  Print["[ggplot] Step 4: Generating legends"];
   legendInfo = {};
-  Print["[ggplot] legendInfo length:", Length[legendInfo]];
 
   (* 5. Layout panels + legends based on facet type *)
-  Print["[ggplot] Step 5: Layout"];
   graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options];
-  Print["[ggplot] final graphic:", Head[graphic]];
 
   graphic
 ]];
 
 (* Helper function to collect global aesthetic mappings only *)
 collectGlobalAestheticMappings[options_] := Module[{globalMappings},
-  Print["[collectGlobalAestheticMappings] Starting"];
   
   (* Get only global aesthetic mappings from ggplot options *)
   globalMappings = <|
@@ -265,7 +230,6 @@ collectGlobalAestheticMappings[options_] := Module[{globalMappings},
     "thickness" -> Lookup[options, "thickness", Null],
     "group" -> Lookup[options, "group", Null]
   |>;
-  Print["[collectGlobalAestheticMappings] globalMappings:", globalMappings];
   
   globalMappings
 ];
@@ -280,4 +244,4 @@ extractMappedValues[data_, mapping_] :=
 
 End[];
 
-EndPackage[]
+EndPackage[];
