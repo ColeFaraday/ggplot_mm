@@ -107,6 +107,12 @@ argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLi
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
   "data" -> {},
+  "color" -> Null,
+  "size" -> Null,
+  "alpha" -> Null,
+  "shape" -> Null,
+  "thickness" -> Null,
+  "group" -> Null,
   "categoricalColors" -> Automatic,
   "sequentialColors" -> {Blue, White, Red},
   "divergingColors" -> {Blue, White, Red},
@@ -120,7 +126,7 @@ Options[ggplot] = DeleteDuplicates[Join[{
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
-ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo, layers, facetSpec, facetResult, globalScales, panelGraphics, allLegendData},
+ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, processedData, allMappings, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo, layers, facetSpec, facetResult, globalScales, panelGraphics, allLegendData},
   
   Print["[ggplot] Starting new pipeline"];
   heldArgs = Hold[args];
@@ -147,13 +153,30 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   facetSpec = If[Length[facetSpec] > 0, First[facetSpec], facetIdentity[]];
   Print["[ggplot] facetSpec head:", Head[facetSpec]];
 
+  (* 0. Global aesthetic reconciliation before faceting *)
+  Print["[ggplot] Step 0: Global aesthetic reconciliation"];
+  processedData = dataset;
+  Print["[ggplot] Initial dataset length:", Length[processedData]];
+  
+  (* Collect all aesthetic mappings from global options and layers *)
+  allMappings = collectAestheticMappings[heldArgs, options];
+  
+  (* Apply aesthetic reconciliation globally *)
+  processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
+  processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
+  processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
+  processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
+  processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
+  processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
+  Print["[ggplot] After global aesthetic reconciliation, data length:", Length[processedData]];
+
   (* 1. Apply faceting to get panel specifications *)
   Print["[ggplot] Step 1: Applying faceting"];
   facetResult = If[facetSpec === facetIdentity[], 
     Print["[ggplot] Using identity facet"];
-    <|"type" -> "identity", "panels" -> <|"single" -> dataset|>|>,
+    <|"type" -> "identity", "panels" -> <|"single" -> processedData|>|>,
     Print["[ggplot] Calling facet function"];
-    facetSpec[dataset]  (* Facet function transforms the data *)
+    facetSpec[processedData]  (* Facet function transforms the data *)
   ];
   Print["[ggplot] facetResult type:", facetResult["type"]];
   Print["[ggplot] facetResult panels keys:", Keys[facetResult["panels"]]];
@@ -225,6 +248,52 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   graphic
 ]];
+
+(* Helper function to collect all aesthetic mappings from global options and layers *)
+collectAestheticMappings[heldArgs_, options_] := Module[{
+  globalMappings, layerMappings, allMappings, layers
+  },
+  Print["[collectAestheticMappings] Starting"];
+  
+  (* Get global aesthetic mappings *)
+  globalMappings = <|
+    "color" -> Lookup[options, "color", Null],
+    "size" -> Lookup[options, "size", Null], 
+    "alpha" -> Lookup[options, "alpha", Null],
+    "shape" -> Lookup[options, "shape", Null],
+    "thickness" -> Lookup[options, "thickness", Null],
+    "group" -> Lookup[options, "group", Null]
+  |>;
+  Print["[collectAestheticMappings] globalMappings:", globalMappings];
+  
+  (* Extract layers to check for aesthetic mappings *)
+  layers = Cases[heldArgs, 
+    (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
+     geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
+     geomHistogram[opts___] | geomErrorBar[opts___] | geomErrorBoxes[opts___] | 
+     geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
+    {0, Infinity}
+  ];
+  Print["[collectAestheticMappings] layers found:", Length[layers]];
+  
+  (* Collect layer mappings and merge with global ones *)
+  layerMappings = Fold[
+    Function[{acc, layer},
+      Module[{layerOpts, layerAesthetics},
+        layerOpts = Association @@ (List @@ layer);
+        layerAesthetics = KeyTake[layerOpts, {"color", "size", "alpha", "shape", "thickness", "group"}];
+        Print["[collectAestheticMappings] layer aesthetics:", layerAesthetics];
+        (* Layer mappings override global ones *)
+        Join[acc, layerAesthetics]
+      ]
+    ],
+    globalMappings,
+    layers
+  ];
+  Print["[collectAestheticMappings] final mappings:", layerMappings];
+  
+  layerMappings
+];
 
 (* Helper to extract mapped values for x, y, or any mapping (string or function) *)
 extractMappedValues[data_, mapping_] := 

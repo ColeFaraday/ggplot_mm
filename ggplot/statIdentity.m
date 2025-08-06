@@ -37,18 +37,8 @@ statIdentity[opts : OptionsPattern[]] := Module[{
   (* Switch dates to absolute times *)
   processedData = Replace[processedData, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
 
-  (* Apply aesthetic reconciliation - this is the grouping logic *)
-  Print["[statIdentity] Reconciling aesthetics"];
-  processedData = reconcileAesthetics[processedData, OptionValue["color"], "color"];
-  processedData = reconcileAesthetics[processedData, OptionValue["size"], "size"];
-  processedData = reconcileAesthetics[processedData, OptionValue["alpha"], "alpha"];
-  processedData = reconcileAesthetics[processedData, OptionValue["shape"], "shape"];
-  processedData = reconcileAesthetics[processedData, OptionValue["thickness"], "thickness"];
-  processedData = reconcileAesthetics[processedData, OptionValue["group"], "group"];
-  Print["[statIdentity] After aesthetic reconciliation, data length:", Length[processedData]];
-
-  (* Group data: if group aesthetic is specified, only group by that; otherwise group by all aesthetics *)
-  Print["[statIdentity] Grouping data"];
+  (* Data should already have aesthetics reconciled globally - just group data now *)
+  Print["[statIdentity] Grouping data (aesthetics already reconciled globally)"];
   groupedData = If[OptionValue["group"] =!= Null,
     Print["[statIdentity] Grouping by explicit group aesthetic"];
     (* Group only by the explicit group aesthetic *)
