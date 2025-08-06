@@ -10,7 +10,9 @@ Options[statIdentity] = {
   "color" -> Null,
   "size" -> Null,
   "alpha" -> Null,
-  "shape" -> Null
+  "shape" -> Null,
+	"thickness" -> Null,
+  "group" -> Null
 };
 
 statIdentity[opts : OptionsPattern[]] := Module[{
@@ -34,15 +36,21 @@ statIdentity[opts : OptionsPattern[]] := Module[{
   processedData = reconcileAesthetics[processedData, OptionValue["size"], "size"];
   processedData = reconcileAesthetics[processedData, OptionValue["alpha"], "alpha"];
   processedData = reconcileAesthetics[processedData, OptionValue["shape"], "shape"];
-  
-  (* Return the processed dataset with aesthetic columns *)
-	groupedData = GroupBy[processedData, 
-			Function[row,
-				(* Group by all aesthetic values - rows with same aesthetics = same group *)
-				{row["color_aes"], row["size_aes"], row["alpha_aes"], row["shape_aes"]}
-			]
-		];
-	groupedData
+  processedData = reconcileAesthetics[processedData, OptionValue["thickness"], "thickness"];
+  processedData = reconcileAesthetics[processedData, OptionValue["group"], "group"];
+
+  (* Group data: if group aesthetic is specified, only group by that; otherwise group by all aesthetics *)
+  groupedData = If[OptionValue["group"] =!= Null,
+    (* Group only by the explicit group aesthetic *)
+    GroupBy[processedData, Function[row, row["group_aes"]]],
+    (* Group by all aesthetic values - rows with same aesthetics = same group *)
+    GroupBy[processedData, 
+      Function[row,
+        {row["color_aes"], row["size_aes"], row["alpha_aes"], row["shape_aes"]}
+      ]
+    ]
+  ];
+  groupedData
 ]
 
 End[];

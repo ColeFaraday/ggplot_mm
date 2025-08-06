@@ -211,6 +211,8 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
           (* 2. Run geom *)
           geomGraphics = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
 
+          Print["[ggplot] geomGraphics:\n", geomGraphics];
+
           geomGraphics
         ]
       ],
