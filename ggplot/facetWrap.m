@@ -94,7 +94,12 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
         statResult = mergedLayer["stat"][Sequence @@ statParams];
         Print["[processPanelLayers] statResult length:", Length[statResult]];
         Print["[processPanelLayers] statResult keys:", Keys[statResult]];
-        (* TODO: Sow[statResult, "legendData"] for legend generation *)
+        
+        (* Generate legend request from stat output and geom type *)
+        Print["[processPanelLayers] Generating legend request"];
+        legendRequest = createLegendRequest[statParams, statResult, mergedLayer["geom"], panelData];
+        Print["[processPanelLayers] legendRequest:", legendRequest];
+        Sow[legendRequest, "legendRequests"];
         
         Print["[processPanelLayers] Running geom:", mergedLayer["geom"]];
         geomResult = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
@@ -120,6 +125,88 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
   ]
 ];
 
+(* Create legend request from stat output and geom type *)
+createLegendRequest[statParams_, statResult_, geomFunc_, originalData_] := Module[{
+  geomType, aestheticMappings, legendRequest
+},
+  Print["[createLegendRequest] Starting legend request creation"];
+  
+  (* Determine geom type from function name *)
+  geomType = determineGeomType[geomFunc];
+  Print["[createLegendRequest] Determined geom type:", geomType];
+  
+  (* Extract aesthetic mappings from stat params and results *)
+  aestheticMappings = extractAestheticMappings[statParams, statResult, originalData];
+  Print["[createLegendRequest] Extracted aesthetic mappings:", aestheticMappings];
+  
+  (* Create legend request *)
+  legendRequest = <|
+    "geomType" -> geomType,
+    "aesthetics" -> aestheticMappings,
+    "originalData" -> originalData
+  |>;
+  
+  Print["[createLegendRequest] Final legend request:", legendRequest];
+  legendRequest
+];
+
+(* Determine geom type from geom function *)
+determineGeomType[geomFunc_] := Module[{funcName},
+  funcName = ToString[geomFunc];
+  Print["[determineGeomType] Function name:", funcName];
+  
+  Which[
+    StringContainsQ[funcName, "geomPointRender"], "point",
+    StringContainsQ[funcName, "geomLineRender"], "line", 
+    StringContainsQ[funcName, "geomPathRender"], "path",
+    StringContainsQ[funcName, "geomColRender"], "bar",
+    True, "unknown"
+  ]
+];
+
+(* Extract aesthetic mappings from stat parameters and results *)
+extractAestheticMappings[statParams_, statResult_, originalData_] := Module[{
+  aesthetics, result, statAssoc
+},
+  result = <||>;
+  statAssoc = Association[statParams];
+  Print["[extractAestheticMappings] statParams keys:", Keys[statAssoc]];
+  Print["[extractAestheticMappings] statResult keys (first group):", If[Length[statResult] > 0, Keys[First[statResult]], {}]];
+  Print["[extractAestheticMappings] originalData length:", Length[originalData]];
+  
+  (* Look for aesthetic mappings in statParams *)
+  aesthetics = {"color", "size", "shape", "alpha", "thickness"};
+  
+  Do[
+    Module[{mappingValue, uniqueValues, dataValues},
+      mappingValue = Lookup[statAssoc, aesthetic, Null];
+      Print["[extractAestheticMappings] Checking aesthetic:", aesthetic, ", value:", mappingValue];
+      
+      If[mappingValue =!= Null,
+        Print["[extractAestheticMappings] Found mapping for:", aesthetic, " -> ", mappingValue];
+        
+        (* Extract unique values from the original data *)
+        dataValues = If[StringQ[mappingValue],
+          originalData[[All, mappingValue]],
+          mappingValue /@ originalData
+        ];
+        uniqueValues = DeleteDuplicates[dataValues];
+        Print["[extractAestheticMappings] Unique values for", aesthetic, ":", uniqueValues];
+        
+        result[aesthetic] = <|
+          "mapping" -> mappingValue,
+          "uniqueValues" -> uniqueValues,
+          "type" -> If[Length[uniqueValues] <= 10, "discrete", "continuous"]
+        |>;
+      ];
+    ],
+    {aesthetic, aesthetics}
+  ];
+  
+  Print["[extractAestheticMappings] Final result:", result];
+  result
+];
+
 (* Layout functions for different facet types *)
 layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_] := (
   Print["[layoutFacetedPlot] Starting layout"];
@@ -142,18 +229,31 @@ layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_] := (
   ]
 );
 
-layoutSinglePanel[panelGraphics_, legendInfo_, options_] := (
+layoutSinglePanel[panelGraphics_, legendInfo_, options_] := Module[{panel, legends},
   Print["[layoutSinglePanel] panelGraphics length:", Length[panelGraphics]];
   Print["[layoutSinglePanel] First panel head:", Head[First[panelGraphics]]];
-  First[panelGraphics] (* Just return the single panel *)
-);
+  Print["[layoutSinglePanel] legendInfo:", legendInfo];
+  
+  panel = First[panelGraphics];
+  
+  (* If we have legends, combine with panel *)
+  If[Length[legendInfo] > 0,
+    legends = Flatten[{legendInfo}];
+    Print["[layoutSinglePanel] Adding", Length[legends], "legend(s) to plot"];
+    (* Use Legended to combine the plot with legends *)
+    Legended[panel, legends],
+    (* No legends, just return the panel *)
+    panel
+  ]
+];
 
 layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_] := Module[{
-  arrangedPanels, stripLabels, finalGrid
+  arrangedPanels, stripLabels, finalGrid, legends
 },
   Print["[layoutWrappedPanels] Starting wrapped layout"];
   Print["[layoutWrappedPanels] panelGraphics length:", Length[panelGraphics]];
   Print["[layoutWrappedPanels] facetResult gridDims:", facetResult["gridDims"]];
+  Print["[layoutWrappedPanels] legendInfo:", legendInfo];
   
   (* Arrange panels into grid *)
   arrangedPanels = ArrayReshape[panelGraphics, facetResult["gridDims"], None];
@@ -162,13 +262,17 @@ layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_] := Modu
   stripLabels = facetResult["stripLabels"];
   Print["[layoutWrappedPanels] stripLabels length:", Length[stripLabels]];
   
-  (* TODO: Add legends based on scope - placeholder for now *)
-  (* arrangedPanels = addLegendsToArrangement[arrangedPanels, legendInfo, options]; *)
-  
   (* Use ResourceFunction for grid layout *)
   Print["[layoutWrappedPanels] Creating PlotGrid"];
+  
+  (* Add global legends if we have any *)
+  If[Length[legendInfo] > 0,
+    legends = Flatten[{legendInfo}];
+    Print["[layoutWrappedPanels] Adding", Length[legends], "global legend(s) to faceted plot"];
+    arrangedPanels[[1]] = Legended[arrangedPanels[[1]], legends];
+  ];
+
   finalGrid = ResourceFunction["PlotGrid"][arrangedPanels, PlotLabels -> stripLabels];
-  Print["[layoutWrappedPanels] finalGrid:", Head[finalGrid]];
   finalGrid
 ];
 End[];

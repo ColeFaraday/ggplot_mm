@@ -200,23 +200,29 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   (* 3. Process each panel through stat→geom pipeline *)
   Print["[ggplot] Step 3: Processing panels"];
-  {panelGraphics, allLegendData} = Reap[
+  {panelGraphics, allLegendRequests} = Reap[
     KeyValueMap[
       Function[{panelKey, panelData},
         Print["[ggplot] Processing panel:", panelKey, ", data length:", Length[panelData]];
         processPanelLayers[panelData, layers, globalScales, options]
       ],
       facetResult["panels"]
-    ]
+    ],
+    "legendRequests"
   ];
   Print["[ggplot] panelGraphics length:", Length[panelGraphics]];
   Print["[ggplot] panelGraphics heads:", Head /@ panelGraphics];
-  Print["[ggplot] panelGraphics:", panelGraphics];
+  Print["[ggplot] allLegendRequests length:", Length[allLegendRequests]];
+  Print["[ggplot] allLegendRequests:", allLegendRequests];
 
-  (* 4. Generate legends - placeholder for now *)
-  Print["[ggplot] Step 4: Generating legends"];
-  legendInfo = {};
+  (* 4. Generate legends from collected requests *)
+  Print["[ggplot] Step 4: Generating legends from requests"];
+  legendInfo = If[Length[allLegendRequests] > 0,
+    createLegendsFromRequests[Flatten[allLegendRequests, 1]],
+    {}
+  ];
   Print["[ggplot] legendInfo length:", Length[legendInfo]];
+  Print["[ggplot] legendInfo:", legendInfo];
 
   (* 5. Layout panels + legends based on facet type *)
   Print["[ggplot] Step 5: Layout"];
@@ -225,6 +231,62 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   graphic
 ]];
+
+(* Create legends from collected legend requests *)
+createLegendsFromRequests[legendRequests_] := Module[{groupedRequests, legends},
+  Print["[createLegendsFromRequests] Starting legend creation"];
+  Print["[createLegendsFromRequests] Number of requests:", Length[legendRequests]];
+  Print["[createLegendsFromRequests] Requests:", legendRequests];
+  
+  (* For now, just create a simple placeholder legend for each request *)
+  legends = Map[createSimpleLegendFromRequest, legendRequests];
+  
+  Print["[createLegendsFromRequests] Created legends:", legends];
+  legends
+];
+
+(* Create a simple legend from a single request *)
+createSimpleLegendFromRequest[request_] := Module[{geomType, aesthetics, colorAesthetic, colorMapping, uniqueValues, actualColors, legendLabels},
+  Print["[createSimpleLegendFromRequest] Processing request:", request];
+  
+  geomType = Lookup[request, "geomType", "unknown"];
+  aesthetics = Lookup[request, "aesthetics", <||>];
+  
+  Print["[createSimpleLegendFromRequest] GeomType:", geomType, ", Aesthetics:", aesthetics];
+  
+  (* For now, just handle color aesthetic as a simple example *)
+  If[KeyExistsQ[aesthetics, "color"],
+    colorAesthetic = aesthetics["color"];
+    colorMapping = Lookup[colorAesthetic, "mapping", "Unknown"];
+    uniqueValues = Lookup[colorAesthetic, "uniqueValues", {}];
+    Print["[createSimpleLegendFromRequest] Creating color legend for mapping:", colorMapping];
+    Print["[createSimpleLegendFromRequest] Unique values:", uniqueValues];
+    
+    (* Use reconcileAesthetics to get the actual colors that would be used *)
+    Module[{sampleData, reconciledData, actualColors},
+      (* Create sample data with the unique values *)
+      sampleData = Table[<|colorMapping -> val|>, {val, uniqueValues}];
+      Print["[createSimpleLegendFromRequest] Sample data for reconciliation:", sampleData];
+      
+      (* Use the same reconcileAesthetics function that the actual plotting uses *)
+      reconciledData = reconcileAesthetics[sampleData, colorMapping, "color"];
+      actualColors = reconciledData[[All, "color_aes"]];
+      Print["[createSimpleLegendFromRequest] Actual colors from reconcileAesthetics:", actualColors];
+      
+      (* Create legend with actual colors and values *)
+      legendLabels = ToString /@ uniqueValues;
+      Print["[createSimpleLegendFromRequest] Legend labels:", legendLabels];
+      
+      PointLegend[
+        actualColors,
+        legendLabels,
+        LegendLabel -> ToString[colorMapping]
+      ]
+    ],
+    (* No aesthetics to legend *)
+    Nothing
+  ]
+];
 
 (* Helper to extract mapped values for x, y, or any mapping (string or function) *)
 extractMappedValues[data_, mapping_] := 
