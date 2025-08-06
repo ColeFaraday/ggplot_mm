@@ -122,28 +122,21 @@ ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo},
   
-  Print["[ggplot] Entered main function"];  
   heldArgs = Hold[args];
-  Print["[ggplot] heldArgs:", heldArgs];
   options = Cases[heldArgs, _Rule, 1];
   dataset = Lookup[options, "data", {}];
-  Print["[ggplot] dataset length:", Length[dataset]];
-  (* options = Join[options, {"data" -> dataset, "x" -> Lookup[options, "x", Null], "y" -> Lookup[options, "y", Null]}]; *)
 
   (* Check for faceting *)
   facetInfo = Cases[heldArgs, facetWrap[opts___] :> facetWrap[opts], {0, Infinity}];
-  Print["[ggplot] Faceting requested:", Length[facetInfo] > 0];
   If[Length[facetInfo] > 0,
     Module[{facetSpec},
       facetSpec = First[facetInfo];
-      Print["[ggplot] Creating faceted plot"];      
       Return[createFacetedGraphics[dataset, facetSpec, heldArgs, options]]
     ]
   ];
 
   defaultXLabel = First@Cases[heldArgs, ("x" -> x_) :> ToString[x], {0, Infinity}];
   defaultYLabel = Quiet[Check[First@Cases[heldArgs, ("y" -> y_) :> ToString[y], {0, Infinity}], ""]];
-  Print["[ggplot] defaultXLabel:", defaultXLabel, ", defaultYLabel:", defaultYLabel];
   frameLabel = Lookup[options, FrameLabel, OptionValue[ggplot, FrameLabel]];
   frameLabel = Which[
     frameLabel === Automatic,
@@ -153,11 +146,9 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     True,
     frameLabel
   ];
-  Print["[ggplot] frameLabel:", frameLabel];
 
   xScaleType = reconcileXScales[heldArgs];
   yScaleType = reconcileYScales[heldArgs];
-  Print["[ggplot] xScaleType:", xScaleType, ", yScaleType:", yScaleType];
 
   xScaleFunc = If[xScaleType == "Discrete",
     createDiscreteScaleFunc["x", heldArgs],
@@ -167,10 +158,9 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     createDiscreteScaleFunc["y", heldArgs],
     With[{f = ToExpression[yScaleType /. "Linear" | "Date" -> "Identity"]}, Function[f[#]]]
   ];
-  Print["[ggplot] xScaleFunc and yScaleFunc created"];
 
-  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]; Print["[ggplot] xDiscreteLabels:", xDiscreteLabels]];
-  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]; Print["[ggplot] yDiscreteLabels:", yDiscreteLabels]];
+  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
+  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
 
   layers = Cases[heldArgs, 
     (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
@@ -179,13 +169,10 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
      geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
     {0, Infinity}
   ];
-  Print["[ggplot] Number of layers:", Length[layers]];
-  Print[layers];
 
   {processedLayers, allStatData} = Reap[
     Map[
       Function[layer,
-        Print["[ggplot] Processing layer:", layer];
         Module[{layerHead, layerOpts, mergedLayer},
           layerHead = Head[layer];
           layerOpts = List @@ layer;
@@ -195,23 +182,14 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
           ];
 
           statParams = mergedLayer["statParams"];
-          
-          (* Prepare geom parameters with scaling functions *)
           geomParams = mergedLayer["geomParams"];
-
-
-          Print["[ggplot] statParams:", statParams[[All,1]]];
           
           (* 1. Run stat *)
           statResult = mergedLayer["stat"][Sequence @@ statParams];
           Sow[statResult, "statData"];
 
-          Print["[ggplot] statResult:", statResult];
-
           (* 2. Run geom *)
           geomGraphics = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
-
-          Print["[ggplot] geomGraphics:\n", geomGraphics];
 
           geomGraphics
         ]
@@ -219,11 +197,8 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
       layers
     ]
   ];
-  Print["[ggplot] processedLayers length:", Length[processedLayers]];
 
   graphicsPrimitives = Flatten[processedLayers];
-  Print["[ggplot] graphicsPrimitives length:", Length[graphicsPrimitives]];
-  Print["[ggplot] graphicsPrimitives head:", graphicsPrimitives[[1]]];
 
   With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},
     xTickFunc = If[xScaleType == "Discrete",
@@ -243,17 +218,14 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
       Function[{min, max}, gridLines2[yScaleType, min, max, tickAndGridLineOptions]]
     ];
   ];
-  Print["[ggplot] Tick/gridline functions created"];
 
   showLegend = Lookup[options, "showLegend", OptionValue[ggplot, "showLegend"]];
   legendInfo = {};
   If[showLegend === Automatic || showLegend === True,
     legendInfo = extractLegendInfo[heldArgs, dataset, options];
-    Print["[ggplot] legendInfo:", legendInfo];
   ];
 
   graphic = If[Length[legendInfo] > 0,
-    Print["[ggplot] Creating Legended Graphics"];
     Legended[
       Graphics[graphicsPrimitives,
         FrameLabel        -> frameLabel,
@@ -283,7 +255,6 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
         GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
       ]
     ],
-    Print["[ggplot] Creating Graphics (no legend)"];
     Graphics[graphicsPrimitives,
       FrameLabel        -> frameLabel,
       PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
@@ -308,7 +279,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
       FilterRules[{options}, Options[ListLinePlot]]
     ]
   ];
-  Print["[ggplot] Returning graphic"];
+
   graphic
 ]];
 
