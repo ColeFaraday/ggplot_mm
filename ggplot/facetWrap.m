@@ -8,170 +8,169 @@ Begin["`Private`"];
 
 (* facetWrap implementation *)
 
-Options[facetWrap] = {"variable" -> Null, "ncol" -> Automatic, "nrow" -> Automatic, "scales" -> "fixed", "stripPosition" -> "top"};
+Options[facetWrap] = {"ncol" -> Automatic, "nrow" -> Automatic, "scales" -> "fixed", "stripPosition" -> "top"};
 
-facetWrap[opts : OptionsPattern[]] := Module[{variable, ncol, nrow, scales, stripPosition},
-  variable = OptionValue["variable"];
-  ncol = OptionValue["ncol"];
-  nrow = OptionValue["nrow"];
-  scales = OptionValue["scales"];
-  stripPosition = OptionValue["stripPosition"];
-  
-  (* Return an association containing faceting information to be processed by ggplot *)
-  <|
-    "type" -> "wrap",
-    "variable" -> variable,
-    "ncol" -> ncol,
-    "nrow" -> nrow,
-    "scales" -> scales,
-    "stripPosition" -> stripPosition
-  |>
+(* facetWrap returns a function that transforms data into panel specifications *)
+facetWrap[variable_, opts : OptionsPattern[]] := Function[dataset,
+  Module[{uniqueValues, nPanels, gridDims, panels},
+    uniqueValues = Sort[DeleteDuplicates[dataset[[All, variable]]]];
+    nPanels = Length[uniqueValues];
+    
+    (* Determine grid dimensions *)
+    gridDims = Module[{ncol, nrow},
+      ncol = OptionValue["ncol"];
+      nrow = OptionValue["nrow"];
+      
+      Which[
+        IntegerQ[ncol] && IntegerQ[nrow],
+        {nrow, ncol},
+        IntegerQ[ncol],
+        {Ceiling[nPanels/ncol], ncol},
+        IntegerQ[nrow],
+        {nrow, Ceiling[nPanels/nrow]},
+        True,
+        Module[{idealCols},
+          idealCols = Ceiling[Sqrt[nPanels]];
+          {Ceiling[nPanels/idealCols], idealCols}
+        ]
+      ]
+    ];
+    
+    (* Group data by faceting variable *)
+    panels = GroupBy[dataset, #[[variable]]&];
+
+    (* Return panel specification *)
+    <|
+      "type" -> "wrap",
+      "variable" -> variable,
+      "gridDims" -> gridDims,
+      "panels" -> panels,
+      "panelOrder" -> uniqueValues,
+      "stripLabels" -> Map[ToString, uniqueValues],
+      "options" -> {opts}
+    |>
+  ]
 ];
 
-(* Function to create faceted graphics *)
-createFacetedGraphics[dataset_, facetInfo_, heldArgs_, options_] := Module[{
-  variable, ncol, nrow, scales, stripPosition, uniqueValues, nPanels, 
-  gridDims, panels, arrangedPanels, stripLabels, xScaleType, yScaleType, 
-  xScaleFunc, yScaleFunc, legendInfo, showLegend, finalGrid, globalDataset
-  },
+(* Identity facet for non-faceted plots *)
+facetIdentity[] := <|
+  "type" -> "identity", 
+  "panels" -> <|"single" -> "all"|>
+|>;
+
+(* Shared panel processing function - used by ALL facet types *)
+processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{processedLayers},
+  Print["[processPanelLayers] Starting panel processing"];
+  Print["[processPanelLayers] panelData length:", Length[panelData]];
+  Print["[processPanelLayers] layers count:", Length[layers]];
+  Print["[processPanelLayers] globalScales keys:", Keys[globalScales]];
+  Print["[processPanelLayers] options count:", Length[options]];
+  Print[panelData[[1]]];
   
-  variable = facetInfo["variable"];
-  ncol = facetInfo["ncol"];
-  nrow = facetInfo["nrow"];
-  scales = facetInfo["scales"];
-  stripPosition = facetInfo["stripPosition"];
+  processedLayers = Map[
+    Function[layer,
+      Module[{layerHead, layerOpts, mergedLayer, statParams, geomParams, statResult, geomResult},
+        layerHead = Head[layer];
+        layerOpts = List @@ layer;
+        Print["[processPanelLayers] layerHead:", layerHead];
+        Print["[processPanelLayers] layerOpts length:", Length[layerOpts]];
+        
+        mergedLayer = layerHead@@ Normal@Join[
+          Association@options, Association@layerOpts
+        ];
+        Print["[processPanelLayers] mergedLayer keys:", Keys[mergedLayer]];
+        
+        statParams = Normal@Association[
+          Association@mergedLayer["statParams"], 
+          <|"data" -> panelData|>
+        ];
+        Print["[processPanelLayers] statParams count:", Length[statParams]];
+        
+        geomParams = mergedLayer["geomParams"];
+        Print["[processPanelLayers] geomParams count:", Length[geomParams]];
+        
+        (* Run stat → geom pipeline *)
+        Print["[processPanelLayers] Running stat:", mergedLayer["stat"]];
+        statResult = mergedLayer["stat"][Sequence @@ statParams];
+        Print["[processPanelLayers] statResult length:", Length[statResult]];
+        Print["[processPanelLayers] statResult keys:", Keys[statResult]];
+        (* TODO: Sow[statResult, "legendData"] for legend generation *)
+        
+        Print["[processPanelLayers] Running geom:", mergedLayer["geom"]];
+        geomResult = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
+        Print["[processPanelLayers] geomResult length:", Length[geomResult]];
+        
+        geomResult
+      ]
+    ],
+    layers
+  ];
+  Print["[processPanelLayers] processedLayers length:", Length[processedLayers]];
   
-  (* Get unique values for faceting variable *)
-  uniqueValues = Sort[DeleteDuplicates[dataset[[All, variable]]]];
-  nPanels = Length[uniqueValues];
+  (* Return Graphics object for this panel *)
+  Graphics[Flatten[processedLayers],
+    Frame -> True,
+    FrameLabel -> {None, None},
+    PlotRange -> Lookup[options, PlotRange, All],
+    AspectRatio -> Lookup[options, AspectRatio, 7/10],
+    ImageSize -> 150,
+    Background -> Lookup[options, Background, None],
+    FrameStyle -> Lookup[options, FrameStyle, Automatic],
+    GridLines -> None
+  ]
+];
+
+(* Layout functions for different facet types *)
+layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_] := (
+  Print["[layoutFacetedPlot] Starting layout"];
+  Print["[layoutFacetedPlot] panelGraphics length:", Length[panelGraphics]];
+  Print["[layoutFacetedPlot] facetResult type:", facetResult["type"]];
+  Print["[layoutFacetedPlot] legendInfo:", legendInfo];
   
-  (* Determine grid dimensions *)
-  gridDims = Which[
-    IntegerQ[ncol] && IntegerQ[nrow],
-    {nrow, ncol},
-    IntegerQ[ncol],
-    {Ceiling[nPanels/ncol], ncol},
-    IntegerQ[nrow],
-    {nrow, Ceiling[nPanels/nrow]},
+  Which[
+    facetResult["type"] === "identity",
+    (Print["[layoutFacetedPlot] Using single panel layout"]; 
+     layoutSinglePanel[panelGraphics, legendInfo, options]),
+    
+    facetResult["type"] === "wrap", 
+    (Print["[layoutFacetedPlot] Using wrapped panel layout"];
+     layoutWrappedPanels[panelGraphics, legendInfo, facetResult, options]),
+    
     True,
-    Module[{idealCols},
-      idealCols = Ceiling[Sqrt[nPanels]];
-      {Ceiling[nPanels/idealCols], idealCols}
-    ]
-  ];
-  
-  (* Get scaling information - simplified for now *)
-  xScaleType = "Linear"; 
-  yScaleType = "Linear";
-  xScaleFunc = Function[Identity[#]];
-  yScaleFunc = Function[Identity[#]];
-  
-  (* PRE-COMPUTE GLOBAL AESTHETIC MAPPINGS for consistency across panels *)
-  
-  (* Extract aesthetic mappings from heldArgs and create globally reconciled dataset *)
-  globalDataset = Module[{workingDataset, colorMapping, shapeMapping, sizeMapping, alphaMapping},
-    workingDataset = dataset;
-    
-    (* Find aesthetic mappings *)
-    colorMapping = Cases[heldArgs, ("color" -> key_) :> key, {0, Infinity}];
-    shapeMapping = Cases[heldArgs, ("shape" -> key_) :> key, {0, Infinity}];
-    sizeMapping = Cases[heldArgs, ("size" -> key_) :> key, {0, Infinity}];
-    alphaMapping = Cases[heldArgs, ("alpha" -> key_) :> key, {0, Infinity}];
-    
-    (* Apply reconcileAesthetics to the complete dataset for each aesthetic *)
-    If[Length[colorMapping] > 0,
-      workingDataset = reconcileAesthetics[workingDataset, First[colorMapping], "color"];
-    ];
-    
-    If[Length[shapeMapping] > 0,
-      workingDataset = reconcileAesthetics[workingDataset, First[shapeMapping], "shape"];
-    ];
-    
-    If[Length[sizeMapping] > 0,
-      workingDataset = reconcileAesthetics[workingDataset, First[sizeMapping], "size"];
-    ];
-    
-    If[Length[alphaMapping] > 0,
-      workingDataset = reconcileAesthetics[workingDataset, First[alphaMapping], "alpha"];
-    ];
-    
-    (* Return the reconciled dataset *)
-    workingDataset
-  ];
-  
-  (* Create individual panels *)
-  panels = Map[Function[value,
-    Module[{subsetData, points, lines, paths, smooths, histograms, primitives, modifiedOptions},
-      
-      (* Filter data for this facet using the globally reconciled dataset *)
-      subsetData = Select[globalDataset, #[variable] === value &];
-      
-      (* Create geoms with subset data - properly override the data parameter *)
-      
-      (* Create modified options with subset data *)
-      modifiedOptions = Normal@Association[options, {"data" -> subsetData}];
-			
-			(* List of all supported geoms *)
-      allGeoms = {geomPoint, geomLine, geomPath, geomSmooth, geomHistogram, geomCol, geomDensity2DFilled, geomErrorBand, geomErrorBar, geomErrorBoxes, geomHLine, geomVLine, geomParityLine};
-      
-      (* Extract geoms from heldArgs and apply modified options for each geom *)
-      geomPrimitives = Flatten[
-        Table[
-          Cases[heldArgs, g[opts___] :> g[opts, FilterRules[modifiedOptions, Options[g]], "xScaleFunc" -> xScaleFunc, "yScaleFunc" -> yScaleFunc], {0, Infinity}],
-          {g, allGeoms}
-        ]
-      ];
-      
-      (* Combine all primitives *)
-      primitives = geomPrimitives;
-      
-			(* TODO: should also inherit theme values *)
-      (* Create the individual plot *)
-      Graphics[primitives,
-        Frame -> True,
-        FrameLabel -> {None, None},
-        PlotRange -> Lookup[options, PlotRange, All],
-        AspectRatio -> Lookup[options, AspectRatio, 7/10],
-        ImageSize -> 150, (* Smaller individual panels *)
-        Background -> Lookup[options, Background, None], (* Use global background if not specified *)
-        FrameStyle -> Lookup[options, FrameStyle, Automatic],
-        GridLines -> None
-      ]
-    ]
-  ], uniqueValues];
-  
-  (* Create strip labels *)
-  stripLabels = Map[Function[value, Style[ToString[value], 12] ], uniqueValues];
-  
+    (Print["[layoutFacetedPlot] ERROR: Unsupported facet type"];
+     $Failed) (* Unsupported facet type *)
+  ]
+);
 
-  (* Reshape into grid *)
-  arrangedPanels = ArrayReshape[panels, gridDims];
+layoutSinglePanel[panelGraphics_, legendInfo_, options_] := (
+  Print["[layoutSinglePanel] panelGraphics length:", Length[panelGraphics]];
+  Print["[layoutSinglePanel] First panel head:", Head[First[panelGraphics]]];
+  First[panelGraphics] (* Just return the single panel *)
+);
+
+layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_] := Module[{
+  arrangedPanels, stripLabels, finalGrid
+},
+  Print["[layoutWrappedPanels] Starting wrapped layout"];
+  Print["[layoutWrappedPanels] panelGraphics length:", Length[panelGraphics]];
+  Print["[layoutWrappedPanels] facetResult gridDims:", facetResult["gridDims"]];
   
-  (* Create the initial grid *)
-	pg = ResourceFunction["PlotGrid"];
-
-  (* Create legend if needed *)
-  showLegend = Lookup[options, "showLegend", True]; (* Default to True for faceted plots *)
-  legendInfo = {};
-  If[showLegend === Automatic || showLegend === True,
-    legendInfo = extractLegendInfo[heldArgs, globalDataset, options];
-  ];
-
-	(* make the first panel have the legend and let PlotGrid decide how to place*)
-	arrangedPanels[[1,1]] = 
-    Legended[
-      arrangedPanels[[1,1]],
-      Placed[
-        Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
-        GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
-      ]
-    ];
-
-  finalGrid = pg[arrangedPanels, PlotLabels->stripLabels];
-
+  (* Arrange panels into grid *)
+  arrangedPanels = ArrayReshape[panelGraphics, facetResult["gridDims"], None];
+  Print["[layoutWrappedPanels] arrangedPanels dimensions:", Dimensions[arrangedPanels]];
+  
+  stripLabels = facetResult["stripLabels"];
+  Print["[layoutWrappedPanels] stripLabels length:", Length[stripLabels]];
+  
+  (* TODO: Add legends based on scope - placeholder for now *)
+  (* arrangedPanels = addLegendsToArrangement[arrangedPanels, legendInfo, options]; *)
+  
+  (* Use ResourceFunction for grid layout *)
+  Print["[layoutWrappedPanels] Creating PlotGrid"];
+  finalGrid = ResourceFunction["PlotGrid"][arrangedPanels, PlotLabels -> stripLabels];
+  Print["[layoutWrappedPanels] finalGrid:", Head[finalGrid]];
   finalGrid
 ];
-
 End[];
 
 EndPackage[];

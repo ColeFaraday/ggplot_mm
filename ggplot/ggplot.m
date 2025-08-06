@@ -120,23 +120,50 @@ Options[ggplot] = DeleteDuplicates[Join[{
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
-ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo},
+ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo, layers, facetSpec, facetResult, globalScales, panelGraphics, allLegendData},
   
+  Print["[ggplot] Starting new pipeline"];
   heldArgs = Hold[args];
+  Print["[ggplot] heldArgs length:", Length[Unevaluated[args]]];
   options = Cases[heldArgs, _Rule, 1];
+  Print["[ggplot] options count:", Length[options]];
   dataset = Lookup[options, "data", {}];
+  Print["[ggplot] dataset length:", Length[dataset]];
 
-  (* Check for faceting *)
-  facetInfo = Cases[heldArgs, facetWrap[opts___] :> facetWrap[opts], {0, Infinity}];
-  If[Length[facetInfo] > 0,
-    Module[{facetSpec},
-      facetSpec = First[facetInfo];
-      Return[createFacetedGraphics[dataset, facetSpec, heldArgs, options]]
-    ]
+  (* Extract layers (geom constructors) *)
+  layers = Cases[heldArgs, 
+    (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
+     geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
+     geomHistogram[opts___] | geomErrorBar[opts___] | geomErrorBoxes[opts___] | 
+     geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
+    {0, Infinity}
   ];
+  Print["[ggplot] layers found:", Length[layers], " layers"];
+  Print["[ggplot] layer types:", Head /@ layers];
 
+  (* Extract facet specification *)
+  facetSpec = Cases[heldArgs, facetWrap[variable_, opts___] :> facetWrap[variable, opts], {0, Infinity}];
+  Print["[ggplot] facetWrap cases found:", Length[facetSpec]];
+  facetSpec = If[Length[facetSpec] > 0, First[facetSpec], facetIdentity[]];
+  Print["[ggplot] facetSpec head:", Head[facetSpec]];
+
+  (* 1. Apply faceting to get panel specifications *)
+  Print["[ggplot] Step 1: Applying faceting"];
+  facetResult = If[facetSpec === facetIdentity[], 
+    Print["[ggplot] Using identity facet"];
+    <|"type" -> "identity", "panels" -> <|"single" -> dataset|>|>,
+    Print["[ggplot] Calling facet function"];
+    facetSpec[dataset]  (* Facet function transforms the data *)
+  ];
+  Print["[ggplot] facetResult type:", facetResult["type"]];
+  Print["[ggplot] facetResult panels keys:", Keys[facetResult["panels"]]];
+  Print["[ggplot] facetResult:", facetResult];
+
+  (* 2. Compute global scales for consistency across panels *)
+  Print["[ggplot] Step 2: Computing global scales"];
   defaultXLabel = First@Cases[heldArgs, ("x" -> x_) :> ToString[x], {0, Infinity}];
   defaultYLabel = Quiet[Check[First@Cases[heldArgs, ("y" -> y_) :> ToString[y], {0, Infinity}], ""]];
+  Print["[ggplot] labels - x:", defaultXLabel, ", y:", defaultYLabel];
   frameLabel = Lookup[options, FrameLabel, OptionValue[ggplot, FrameLabel]];
   frameLabel = Which[
     frameLabel === Automatic,
@@ -146,9 +173,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     True,
     frameLabel
   ];
+  Print["[ggplot] frameLabel head:", Head[frameLabel]];
 
   xScaleType = reconcileXScales[heldArgs];
   yScaleType = reconcileYScales[heldArgs];
+  Print["[ggplot] scale types - x:", xScaleType, ", y:", yScaleType];
 
   xScaleFunc = If[xScaleType == "Discrete",
     createDiscreteScaleFunc["x", heldArgs],
@@ -158,127 +187,41 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     createDiscreteScaleFunc["y", heldArgs],
     With[{f = ToExpression[yScaleType /. "Linear" | "Date" -> "Identity"]}, Function[f[#]]]
   ];
+  Print["[ggplot] scale functions created"];
 
-  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
-  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
+  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]; Print["[ggplot] xDiscreteLabels length:", Length[xDiscreteLabels]]];
+  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]; Print["[ggplot] yDiscreteLabels length:", Length[yDiscreteLabels]]];
 
-  layers = Cases[heldArgs, 
-    (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
-     geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
-     geomHistogram[opts___] | geomErrorBar[opts___] | geomErrorBoxes[opts___] | 
-     geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
-    {0, Infinity}
-  ];
+  globalScales = <|
+    "xScaleFunc" -> xScaleFunc, 
+    "yScaleFunc" -> yScaleFunc
+  |>;
+  Print["[ggplot] globalScales created"];
 
-  {processedLayers, allStatData} = Reap[
-    Map[
-      Function[layer,
-        Module[{layerHead, layerOpts, mergedLayer},
-          layerHead = Head[layer];
-          layerOpts = List @@ layer;
-          mergedLayer = layerHead@@ Normal@Join[
-            Association@options,
-            Association@layerOpts
-          ];
-
-          statParams = mergedLayer["statParams"];
-          geomParams = mergedLayer["geomParams"];
-          
-          (* 1. Run stat *)
-          statResult = mergedLayer["stat"][Sequence @@ statParams];
-          Sow[statResult, "statData"];
-
-          (* 2. Run geom *)
-          geomGraphics = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
-
-          geomGraphics
-        ]
+  (* 3. Process each panel through stat→geom pipeline *)
+  Print["[ggplot] Step 3: Processing panels"];
+  {panelGraphics, allLegendData} = Reap[
+    KeyValueMap[
+      Function[{panelKey, panelData},
+        Print["[ggplot] Processing panel:", panelKey, ", data length:", Length[panelData]];
+        processPanelLayers[panelData, layers, globalScales, options]
       ],
-      layers
+      facetResult["panels"]
     ]
   ];
+  Print["[ggplot] panelGraphics length:", Length[panelGraphics]];
+  Print["[ggplot] panelGraphics heads:", Head /@ panelGraphics];
+  Print["[ggplot] panelGraphics:", panelGraphics];
 
-  graphicsPrimitives = Flatten[processedLayers];
-
-  With[{tickAndGridLineOptions = FilterRules[{options}, {Options[ticks2], Options[gridLines2]}]},
-    xTickFunc = If[xScaleType == "Discrete",
-      ticks2[xScaleType, xDiscreteLabels, tickAndGridLineOptions],
-      Function[{min, max}, ticks2[xScaleType, min, max, tickAndGridLineOptions]]
-    ];
-    yTickFunc = If[yScaleType == "Discrete",
-      ticks2[yScaleType, yDiscreteLabels, tickAndGridLineOptions],
-      Function[{min, max}, ticks2[yScaleType, min, max, tickAndGridLineOptions]]
-    ];
-    xGridLineFunc = If[xScaleType == "Discrete",
-      gridLines2[xScaleType, xDiscreteLabels, tickAndGridLineOptions],
-      Function[{min, max}, gridLines2[xScaleType, min, max, tickAndGridLineOptions]]
-    ];
-    yGridLineFunc = If[yScaleType == "Discrete",
-      gridLines2[yScaleType, yDiscreteLabels, tickAndGridLineOptions],
-      Function[{min, max}, gridLines2[yScaleType, min, max, tickAndGridLineOptions]]
-    ];
-  ];
-
-  showLegend = Lookup[options, "showLegend", OptionValue[ggplot, "showLegend"]];
+  (* 4. Generate legends - placeholder for now *)
+  Print["[ggplot] Step 4: Generating legends"];
   legendInfo = {};
-  If[showLegend === Automatic || showLegend === True,
-    legendInfo = extractLegendInfo[heldArgs, dataset, options];
-  ];
+  Print["[ggplot] legendInfo length:", Length[legendInfo]];
 
-  graphic = If[Length[legendInfo] > 0,
-    Legended[
-      Graphics[graphicsPrimitives,
-        FrameLabel        -> frameLabel,
-        PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
-        ImageSize         -> Lookup[options, ImageSize, OptionValue[ggplot, ImageSize]],
-        AspectRatio       -> Lookup[options, AspectRatio, OptionValue[ggplot, AspectRatio]],
-        Frame             -> Lookup[options, Frame, OptionValue[ggplot, Frame]],
-        Axes              -> Lookup[options, Axes, OptionValue[ggplot, Axes]],
-        LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
-        FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
-        FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
-        PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
-        GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
-          {xGridLineFunc, yGridLineFunc},
-          Lookup[options, GridLines, OptionValue[ggplot, GridLines]]
-        ],
-        GridLinesStyle    -> Automatic,
-        Background        -> Lookup[options, Background, OptionValue[ggplot, Background]],
-        ImageMargins      -> Lookup[options, ImageMargins, OptionValue[ggplot, ImageMargins]],
-        PlotRangeClipping -> Lookup[options, PlotRangeClipping, OptionValue[ggplot, PlotRangeClipping]],
-        Prolog            -> Lookup[options, Prolog, OptionValue[ggplot, Prolog]],
-        Method            -> Lookup[options, Method, OptionValue[ggplot, Method]],
-        FilterRules[{options}, Options[ListLinePlot]]
-      ],
-      Placed[
-        Row[Join[convertLegendInfo[legendInfo], {Spacer[5]}]],
-        GetScaledCoord[Lookup[options, "legendPosition", "OuterMiddleRight"]]
-      ]
-    ],
-    Graphics[graphicsPrimitives,
-      FrameLabel        -> frameLabel,
-      PlotStyle         -> Lookup[options, PlotStyle, OptionValue[ggplot, PlotStyle]],
-      ImageSize         -> Lookup[options, ImageSize, OptionValue[ggplot, ImageSize]],
-      AspectRatio       -> Lookup[options, AspectRatio, OptionValue[ggplot, AspectRatio]],
-      Frame             -> Lookup[options, Frame, OptionValue[ggplot, Frame]],
-      Axes              -> Lookup[options, Axes, OptionValue[ggplot, Axes]],
-      LabelStyle        -> Lookup[options, LabelStyle, OptionValue[ggplot, LabelStyle]],
-      FrameStyle        -> Lookup[options, FrameStyle, OptionValue[ggplot, FrameStyle]],
-      FrameTicksStyle   -> Lookup[options, FrameTicksStyle, OptionValue[ggplot, FrameTicksStyle]],
-      PlotRange         -> Lookup[options, PlotRange, OptionValue[ggplot, PlotRange]],
-      GridLines         -> If[Lookup[options, GridLines, OptionValue[ggplot, GridLines]] === Automatic,
-        {xGridLineFunc, yGridLineFunc},
-        Lookup[options, GridLines, OptionValue[ggplot, GridLines]]
-      ],
-      GridLinesStyle    -> Automatic,
-      Background        -> Lookup[options, Background, OptionValue[ggplot, Background]],
-      ImageMargins      -> Lookup[options, ImageMargins, OptionValue[ggplot, ImageMargins]],
-      PlotRangeClipping -> Lookup[options, PlotRangeClipping, OptionValue[ggplot, PlotRangeClipping]],
-      Prolog            -> Lookup[options, Prolog, OptionValue[ggplot, Prolog]],
-      Method            -> Lookup[options, Method, OptionValue[ggplot, Method]],
-      FilterRules[{options}, Options[ListLinePlot]]
-    ]
-  ];
+  (* 5. Layout panels + legends based on facet type *)
+  Print["[ggplot] Step 5: Layout"];
+  graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options];
+  Print["[ggplot] final graphic:", Head[graphic]];
 
   graphic
 ]];

@@ -19,8 +19,6 @@ geomLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}
 Options[geomLineRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "group" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yvals, pairs, sortedPairs, scaledPairs, connectedSegments},
   (* statData is a single group - a list of associations *)
-  Print["[geomLineRender] statData length:", Length[statData]];
-  Print["[geomLineRender] first few rows:", Take[statData, UpTo[3]]];
   
   xvals = extractMappedValues[statData, OptionValue["x"]];
   yvals = extractMappedValues[statData, OptionValue["y"]];
@@ -49,7 +47,6 @@ geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yva
   ];
   
   output = connectedSegments;
-  Print["[geomLineRender] output:", output];
   output
 
 ];
