@@ -14,6 +14,7 @@ $ggplotTheme::usage       = "TBD";
 
 (* Geoms *)
 geomPoint::usage        = "TBD";
+geomPointRender::usage        = "TBD";
 geomLine::usage         = "TBD";
 geomPath::usage         = "TBD";
 geomSmooth::usage       = "TBD";
