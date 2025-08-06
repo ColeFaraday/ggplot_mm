@@ -33,21 +33,27 @@ statIdentity[opts : OptionsPattern[]] := Module[{
   
   processedData = dataset;
   Print["[statIdentity] Initial processedData length:", Length[processedData]];
+  Print["[statIdentity] First row example:", First[processedData, <||>]];
   
   (* Switch dates to absolute times *)
   processedData = Replace[processedData, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
 
-  (* Data should already have aesthetics reconciled globally - just group data now *)
-  Print["[statIdentity] Grouping data (aesthetics already reconciled globally)"];
-  groupedData = If[OptionValue["group"] =!= Null,
+  (* SIMPLIFIED: statIdentity is now purely about data transformation *)
+  (* All aesthetic reconciliation should have been done before this point *)
+  
+  (* Group data: if group aesthetic is specified, only group by that; otherwise group by all aesthetics *)
+  Print["[statIdentity] Grouping data by aesthetic combinations"];
+  groupedData = If[KeyExistsQ[First[processedData, <||>], "group_aes"],
     Print["[statIdentity] Grouping by explicit group aesthetic"];
-    (* Group only by the explicit group aesthetic *)
+    (* Group only by the group aesthetic *)
     GroupBy[processedData, Function[row, row["group_aes"]]],
-    Print["[statIdentity] Grouping by all aesthetics"];
+    Print["[statIdentity] Grouping by all aesthetic combinations"];
     (* Group by all aesthetic values - rows with same aesthetics = same group *)
     GroupBy[processedData, 
       Function[row,
-        {row["color_aes"], row["size_aes"], row["alpha_aes"], row["shape_aes"]}
+        {Lookup[row, "color_aes", Black], Lookup[row, "size_aes", 1], 
+         Lookup[row, "alpha_aes", Opacity[1]], Lookup[row, "shape_aes", "\[FilledCircle]"],
+         Lookup[row, "thickness_aes", Automatic]}
       ]
     ]
   ];

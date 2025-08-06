@@ -69,7 +69,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
   
   processedLayers = Map[
     Function[layer,
-      Module[{layerHead, layerOpts, mergedLayer, statParams, geomParams, statResult, geomResult},
+      Module[{layerHead, layerOpts, mergedLayer, layerAesthetics, resolvedData, statParams, geomParams, statResult, geomResult},
         layerHead = Head[layer];
         layerOpts = List @@ layer;
         Print["[processPanelLayers] layerHead:", layerHead];
@@ -80,9 +80,17 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
         ];
         Print["[processPanelLayers] mergedLayer keys:", Keys[mergedLayer]];
         
+        (* STEP 1: Resolve layer-specific aesthetics BEFORE stat processing *)
+        Print["[processPanelLayers] Resolving layer aesthetics"];
+        layerAesthetics = extractLayerAesthetics[Association@layerOpts];
+        resolvedData = resolveLayerAesthetics[panelData, layerAesthetics, options];
+        Print["[processPanelLayers] resolvedData length:", Length[resolvedData]];
+        Print["[processPanelLayers] resolvedData first row:", First[resolvedData, <||>]];
+        
+        (* STEP 2: Run stat function with resolved data *)
         statParams = Normal@Association[
           Association@mergedLayer["statParams"], 
-          <|"data" -> panelData|>
+          <|"data" -> resolvedData|>
         ];
         Print["[processPanelLayers] statParams count:", Length[statParams]];
         
@@ -118,6 +126,60 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
     FrameStyle -> Lookup[options, FrameStyle, Automatic],
     GridLines -> None
   ]
+];
+
+(* Extract layer-specific aesthetic mappings *)
+extractLayerAesthetics[layerOpts_] := Module[{layerAesthetics},
+  layerAesthetics = <|
+    "color" -> Lookup[layerOpts, "color", Null],
+    "size" -> Lookup[layerOpts, "size", Null], 
+    "alpha" -> Lookup[layerOpts, "alpha", Null],
+    "shape" -> Lookup[layerOpts, "shape", Null],
+    "thickness" -> Lookup[layerOpts, "thickness", Null],
+    "group" -> Lookup[layerOpts, "group", Null]
+  |>;
+  Print["[extractLayerAesthetics] layerAesthetics:", layerAesthetics];
+  layerAesthetics
+];
+
+(* Resolve layer aesthetics - only override globals if layer specifies something *)
+resolveLayerAesthetics[panelData_, layerAesthetics_, globalOptions_] := Module[{processedData},
+  processedData = panelData;
+  Print["[resolveLayerAesthetics] Starting with data length:", Length[processedData]];
+  
+  (* Apply layer-specific aesthetics that override globals *)
+  If[layerAesthetics["color"] =!= Null,
+    Print["[resolveLayerAesthetics] Applying layer-specific color"];
+    processedData = reconcileAesthetics[processedData, layerAesthetics["color"], "color"]
+  ];
+  
+  If[layerAesthetics["size"] =!= Null,
+    Print["[resolveLayerAesthetics] Applying layer-specific size"];
+    processedData = reconcileAesthetics[processedData, layerAesthetics["size"], "size"]
+  ];
+  
+  If[layerAesthetics["alpha"] =!= Null,
+    Print["[resolveLayerAesthetics] Applying layer-specific alpha"];
+    processedData = reconcileAesthetics[processedData, layerAesthetics["alpha"], "alpha"]
+  ];
+  
+  If[layerAesthetics["shape"] =!= Null,
+    Print["[resolveLayerAesthetics] Applying layer-specific shape"];
+    processedData = reconcileAesthetics[processedData, layerAesthetics["shape"], "shape"]
+  ];
+  
+  If[layerAesthetics["thickness"] =!= Null,
+    Print["[resolveLayerAesthetics] Applying layer-specific thickness"];
+    processedData = reconcileAesthetics[processedData, layerAesthetics["thickness"], "thickness"]
+  ];
+  
+  If[layerAesthetics["group"] =!= Null,
+    Print["[resolveLayerAesthetics] Applying layer-specific group"];
+    processedData = reconcileAesthetics[processedData, layerAesthetics["group"], "group"]
+  ];
+  
+  Print["[resolveLayerAesthetics] Final processed data length:", Length[processedData]];
+  processedData
 ];
 
 (* Layout functions for different facet types *)

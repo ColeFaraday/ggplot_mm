@@ -158,17 +158,20 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   processedData = dataset;
   Print["[ggplot] Initial dataset length:", Length[processedData]];
   
-  (* Collect all aesthetic mappings from global options and layers *)
-  allMappings = collectAestheticMappings[heldArgs, options];
-  
+  (* Collect only global aesthetic mappings *)
+  allMappings = collectGlobalAestheticMappings[options];
+
   (* Apply aesthetic reconciliation globally *)
   processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
+  Print[processedData[[1]]];
   processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
   processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
   processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
   processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
   processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
   Print["[ggplot] After global aesthetic reconciliation, data length:", Length[processedData]];
+
+  Print[processedData[[1]]];
 
   (* 1. Apply faceting to get panel specifications *)
   Print["[ggplot] Step 1: Applying faceting"];
@@ -249,13 +252,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   graphic
 ]];
 
-(* Helper function to collect all aesthetic mappings from global options and layers *)
-collectAestheticMappings[heldArgs_, options_] := Module[{
-  globalMappings, layerMappings, allMappings, layers
-  },
-  Print["[collectAestheticMappings] Starting"];
+(* Helper function to collect global aesthetic mappings only *)
+collectGlobalAestheticMappings[options_] := Module[{globalMappings},
+  Print["[collectGlobalAestheticMappings] Starting"];
   
-  (* Get global aesthetic mappings *)
+  (* Get only global aesthetic mappings from ggplot options *)
   globalMappings = <|
     "color" -> Lookup[options, "color", Null],
     "size" -> Lookup[options, "size", Null], 
@@ -264,35 +265,9 @@ collectAestheticMappings[heldArgs_, options_] := Module[{
     "thickness" -> Lookup[options, "thickness", Null],
     "group" -> Lookup[options, "group", Null]
   |>;
-  Print["[collectAestheticMappings] globalMappings:", globalMappings];
+  Print["[collectGlobalAestheticMappings] globalMappings:", globalMappings];
   
-  (* Extract layers to check for aesthetic mappings *)
-  layers = Cases[heldArgs, 
-    (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
-     geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
-     geomHistogram[opts___] | geomErrorBar[opts___] | geomErrorBoxes[opts___] | 
-     geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
-    {0, Infinity}
-  ];
-  Print["[collectAestheticMappings] layers found:", Length[layers]];
-  
-  (* Collect layer mappings and merge with global ones *)
-  layerMappings = Fold[
-    Function[{acc, layer},
-      Module[{layerOpts, layerAesthetics},
-        layerOpts = Association @@ (List @@ layer);
-        layerAesthetics = KeyTake[layerOpts, {"color", "size", "alpha", "shape", "thickness", "group"}];
-        Print["[collectAestheticMappings] layer aesthetics:", layerAesthetics];
-        (* Layer mappings override global ones *)
-        Join[acc, layerAesthetics]
-      ]
-    ],
-    globalMappings,
-    layers
-  ];
-  Print["[collectAestheticMappings] final mappings:", layerMappings];
-  
-  layerMappings
+  globalMappings
 ];
 
 (* Helper to extract mapped values for x, y, or any mapping (string or function) *)

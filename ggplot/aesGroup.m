@@ -1,6 +1,5 @@
 (* Mathematica Source File *)
-(* Created by Mathematica Plugin for IntelliJ IDEA *)
-(* :Author: andrewyule *)
+(* :Author: colefaraday *)
 (* :Date: 2025-08-04 *)
 
 BeginPackage["ggplot`"];
@@ -10,11 +9,6 @@ Begin["`Private`"];
 (* Default function if group is not being used as an aesthetic *)
 reconcileAesthetics[dataset_, Null, "group"] := Module[{newDataset},
   newDataset = dataset;
-  (* Only add group_aes if it doesn't already exist (for faceting compatibility) *)
-  If[!KeyExistsQ[First[newDataset], "group_aes"],
-    (* When no group is specified, each row gets its own group (no grouping) *)
-    newDataset = newDataset // MapIndexed[Append[#1, "group_aes" -> #2[[1]]] &]
-  ];
   newDataset
 ];
 
