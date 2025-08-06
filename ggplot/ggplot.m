@@ -193,9 +193,13 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
   If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
 
+  (* Calculate consistent plot ranges from full dataset for faceting *)
+  globalPlotRange = calculateGlobalPlotRange[processedData, heldArgs, xScaleFunc, yScaleFunc];
+
   globalScales = <|
     "xScaleFunc" -> xScaleFunc, 
-    "yScaleFunc" -> yScaleFunc
+    "yScaleFunc" -> yScaleFunc,
+    "plotRange" -> globalPlotRange
   |>;
   
 
@@ -232,6 +236,41 @@ collectGlobalAestheticMappings[options_] := Module[{globalMappings},
   |>;
   
   globalMappings
+];
+
+(* Calculate consistent plot ranges from the full dataset for faceting *)
+calculateGlobalPlotRange[processedData_, heldArgs_, xScaleFunc_, yScaleFunc_] := Module[{
+  xMapping, yMapping, xValues, yValues, scaledXValues, scaledYValues, xRange, yRange
+},
+  (* Extract x and y mappings from arguments *)
+  xMapping = First@Cases[heldArgs, ("x" -> x_) :> x, {0, Infinity}, 1];
+  yMapping = First@Cases[heldArgs, ("y" -> y_) :> y, {0, Infinity}, 1];
+  
+  If[xMapping === $Failed || yMapping === $Failed,
+    Return[All] (* Fallback if mappings not found *)
+  ];
+  
+  (* Extract x and y values using the mapping functions *)
+  xValues = extractMappedValues[processedData, xMapping];
+  yValues = extractMappedValues[processedData, yMapping];
+  
+  If[Length[xValues] == 0 || Length[yValues] == 0,
+    Return[All] (* Fallback if no data *)
+  ];
+  
+  (* Apply scale transformations *)
+  scaledXValues = xScaleFunc /@ xValues;
+  scaledYValues = yScaleFunc /@ yValues;
+  
+  (* Calculate ranges with small padding *)
+  xRange = MinMax[scaledXValues];
+  yRange = MinMax[scaledYValues];
+  
+  (* Add 5% padding to ranges *)
+  xRange = xRange + {-1, 1} * 0.1 * (xRange[[2]] - xRange[[1]]);
+  yRange = yRange + {-1, 1} * 0.1 * (yRange[[2]] - yRange[[1]]);
+  
+  {xRange, yRange}
 ];
 
 (* Helper to extract mapped values for x, y, or any mapping (string or function) *)
