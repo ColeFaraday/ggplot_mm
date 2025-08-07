@@ -9,12 +9,20 @@ Begin["`Private`"];
 
 (* geomHistogram implementation *)
 ClearAll[geomHistogram];
-geomHistogram[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statBin,
-  "geom" -> geomHistogramRender,
-  "statParams" -> FilterRules[{opts}, Options[statBin]],
-  "geomParams" -> FilterRules[{opts}, Options[geomHistogramRender]]
-|>;
+geomHistogram[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statBin];
+  geomFunc = Lookup[Association[opts], "geom", geomHistogramRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomHistogramRender] = {"data" -> {}, "x" -> Null, "y" -> "count", "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output},

@@ -9,12 +9,20 @@ Begin["`Private`"];
 
 (* geomHLine implementation *)
 ClearAll[geomHLine];
-geomHLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statIdentity,
-  "geom" -> geomHLineRender,
-  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
-  "geomParams" -> FilterRules[{opts}, Options[geomHLineRender]]
-|>;
+geomHLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statIdentity];
+  geomFunc = Lookup[Association[opts], "geom", geomHLineRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomHLineRender] = {"data" -> {}, "yintercept" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomHLineRender[statData_, opts : OptionsPattern[]] := Module[{output, yintercept},

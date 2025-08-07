@@ -9,12 +9,20 @@ Begin["`Private`"];
 
 (* geomCol implementation *)
 ClearAll[geomCol];
-geomCol[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statIdentity,
-  "geom" -> geomColRender,
-  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
-  "geomParams" -> FilterRules[{opts}, Options[geomColRender]]
-|>;
+geomCol[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statIdentity];
+  geomFunc = Lookup[Association[opts], "geom", geomColRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomColRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "alpha" -> Null, "width" -> 0.9, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomColRender[statData_, opts : OptionsPattern[]] := Module[{output, width},

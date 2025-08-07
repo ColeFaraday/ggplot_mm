@@ -8,12 +8,20 @@ Begin["`Private`"];
 
 (* geomErrorBand implementation *)
 ClearAll[geomErrorBand];
-geomErrorBand[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statIdentity,
-  "geom" -> geomErrorBandRender,
-  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
-  "geomParams" -> FilterRules[{opts}, Options[geomErrorBandRender]]
-|>;
+geomErrorBand[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statIdentity];
+  geomFunc = Lookup[Association[opts], "geom", geomErrorBandRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomErrorBandRender] = {"data" -> {}, "x" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomErrorBandRender[statData_, opts : OptionsPattern[]] := Module[{output},

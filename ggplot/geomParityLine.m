@@ -9,12 +9,20 @@ Begin["`Private`"];
 
 (* geomParityLine implementation - draws a y=x diagonal line *)
 ClearAll[geomParityLine];
-geomParityLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statIdentity,
-  "geom" -> geomParityLineRender,
-  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
-  "geomParams" -> FilterRules[{opts}, Options[geomParityLineRender]]
-|>;
+geomParityLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statIdentity];
+  geomFunc = Lookup[Association[opts], "geom", geomParityLineRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomParityLineRender] = {"data" -> {}, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomParityLineRender[statData_, opts : OptionsPattern[]] := Module[{output},

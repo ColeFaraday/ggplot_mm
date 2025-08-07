@@ -9,12 +9,20 @@ Begin["`Private`"];
 
 (* geomSmooth implementation *)
 ClearAll[geomSmooth];
-geomSmooth[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statSmooth,
-  "geom" -> geomSmoothRender,
-  "statParams" -> FilterRules[{opts}, Options[statSmooth]],
-  "geomParams" -> FilterRules[{opts}, Options[geomSmoothRender]]
-|>;
+geomSmooth[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statSmooth];
+  geomFunc = Lookup[Association[opts], "geom", geomSmoothRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomSmoothRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomSmoothRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yvals, pairs, sortedPairs, scaledPairs, connectedSegments},

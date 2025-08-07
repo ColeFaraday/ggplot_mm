@@ -8,12 +8,20 @@ Begin["`Private`"];
 
 (* geomDensity2DFilled implementation *)
 ClearAll[geomDensity2DFilled];
-geomDensity2DFilled[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statDensity2D,
-  "geom" -> geomDensity2DFilledRender,
-  "statParams" -> FilterRules[{opts}, Options[statDensity2D]],
-  "geomParams" -> FilterRules[{opts}, Options[geomDensity2DFilledRender]]
-|>;
+geomDensity2DFilled[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statDensity2D];
+  geomFunc = Lookup[Association[opts], "geom", geomDensity2DFilledRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomDensity2DFilledRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomDensity2DFilledRender[statData_, opts : OptionsPattern[]] := Module[{output},

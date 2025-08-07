@@ -68,15 +68,21 @@ statBin[opts : OptionsPattern[]] := Module[{
           (* Create a new data point for each bin *)
           Association[
             OptionValue["x"] -> center,
+            OptionValue["y"] -> count,
             "count" -> count,
             "density" -> count / (Total[counts] * (rightEdge - leftEdge)),
             "binwidth" -> rightEdge - leftEdge,
             "xmin" -> leftEdge,
             "xmax" -> rightEdge,
+            "x" -> center,  (* Default x mapping *)
             "y" -> count,  (* Default y mapping *)
             (* Preserve aesthetics from the group *)
             "color_aes" -> Lookup[First[groupData], "color_aes", Black],
-            "alpha_aes" -> Lookup[First[groupData], "alpha_aes", Opacity[1]]
+            "alpha_aes" -> Lookup[First[groupData], "alpha_aes", Opacity[1]],
+						"shape_aes" -> Lookup[First[groupData], "shape_aes", "\[FilledCircle]"],
+						"thickness_aes" -> Lookup[First[groupData], "thickness_aes", Automatic],
+						"group_aes" -> Lookup[First[groupData], "group_aes", Null],
+						"size_aes" -> Lookup[First[groupData], "size_aes", 1]
           ]
         ], {binCenters, counts, Most[bins], Rest[bins]}];
         

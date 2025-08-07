@@ -7,12 +7,20 @@ Begin["`Private`"];
 
 (* geomConvexHull implementation *)
 ClearAll[geomConvexHull];
-geomConvexHull[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statConvexHull,
-  "geom" -> geomConvexHullRender,
-  "statParams" -> FilterRules[{opts}, Options[statConvexHull]],
-  "geomParams" -> FilterRules[{opts}, Options[geomConvexHullRender]]
-|>;
+geomConvexHull[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statConvexHull];
+  geomFunc = Lookup[Association[opts], "geom", geomConvexHullRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 (* geomConvexHullRender - dedicated renderer for convex hulls *)
 Options[geomConvexHullRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
