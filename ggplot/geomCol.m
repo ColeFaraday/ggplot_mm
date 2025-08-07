@@ -7,28 +7,39 @@ BeginPackage["ggplot`"];
 
 Begin["`Private`"];
 
-Options[geomCol] = {"x" -> Null, "y" -> Null, "color" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomCol[dataset_?ListQ, aesthetics : OptionsPattern[]] := Module[{newDataset, groupbyKeys, colorFunc, output},
+(* geomCol implementation *)
+ClearAll[geomCol];
+geomCol[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
+  "stat" -> statIdentity,
+  "geom" -> geomColRender,
+  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
+  "geomParams" -> FilterRules[{opts}, Options[geomColRender]]
+|>;
+
+Options[geomColRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "alpha" -> Null, "width" -> 0.9, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomColRender[statData_, opts : OptionsPattern[]] := Module[{output, width},
   (* Ensure X/Y has been given *)
-  If[OptionValue["x"] === Null || OptionValue["y"] === Null, Message[ggplot::xOrYNotGiven]; Throw[Null];];
+  If[OptionValue["x"] === Null || OptionValue["y"] === Null, 
+    Message[ggplot::xOrYNotGiven]; Throw[Null]
+  ];
 
-  newDataset = dataset;
+  width = OptionValue["width"] / 2;
 
-  (* Switch dates to absolute times *)
-  newDataset = Replace[newDataset, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
+  (* Create rectangles for each data point *)
+  output = statData // Map[Function[row,
+    Module[{colorDir, alphaDir, xpos, yval, pos1, pos2},
+      colorDir = row["color_aes"];
+      alphaDir = row["alpha_aes"];
+      xpos = OptionValue["xScaleFunc"][extractMappedValues[{row}, OptionValue["x"]][[1]]];
+      yval = OptionValue["yScaleFunc"][extractMappedValues[{row}, OptionValue["y"]][[1]]];
+      
+      pos1 = {xpos - width, 0};
+      pos2 = {xpos + width, yval};
+      
+      {colorDir, alphaDir, Rectangle[pos1, pos2]}
+    ]
+  ]];
 
-  (* For each key necessary, reconcile the aesthetics and append them to the dataset as a column name i.e. "color_aes" -> somecolor *)
-  newDataset = reconcileAesthetics[newDataset, OptionValue["color"], "color"];
-
-  (*Grab the rectangles and for each apply the correct aesthetic*)
-  output = newDataset // Map[{
-    # ["color_aes"],
-    Rectangle[{extractMappedValues[{#}, OptionValue["x"]][[1]] - 0.05, 0}, {extractMappedValues[{#}, OptionValue["x"]][[1]] + 0.05 , extractMappedValues[{#}, OptionValue["y"]][[1]]}]
-  } &];
-
-  (*output = output // ReverseSortBy[#[[&]*)
-
-  (* TODO: Add a group function to remove duplicated primitives*)
   output
 ];
 

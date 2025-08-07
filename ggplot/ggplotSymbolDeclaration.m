@@ -16,17 +16,39 @@ $ggplotTheme::usage       = "TBD";
 geomPoint::usage        = "TBD";
 geomPointRender::usage        = "TBD";
 geomLine::usage         = "TBD";
+geomLineRender::usage         = "TBD";
 geomPath::usage         = "TBD";
+geomPathRender::usage         = "TBD";
 geomSmooth::usage       = "TBD";
+geomSmoothRender::usage       = "TBD";
 geomCol::usage          = "TBD";
+geomColRender::usage          = "TBD";
 geomParityLine::usage   = "TBD";
+geomParityLineRender::usage   = "TBD";
 geomHLine::usage        = "TBD";
+geomHLineRender::usage        = "TBD";
 geomVLine::usage        = "TBD";
+geomVLineRender::usage        = "TBD";
 geomHistogram::usage    = "TBD";
+geomHistogramRender::usage    = "TBD";
 geomErrorBar::usage    = "TBD";
+geomErrorBarRender::usage    = "TBD";
 geomErrorBoxes::usage    = "TBD";
+geomErrorBoxesRender::usage    = "TBD";
 geomErrorBand::usage    = "TBD";
+geomErrorBandRender::usage    = "TBD";
 geomDensity2DFilled::usage    = "TBD";
+geomDensity2DFilledRender::usage    = "TBD";
+geomConvexHull::usage    = "TBD";
+geomText::usage  = "TBD";
+geomTextRender::usage  = "TBD";
+
+(* Stats *)
+statIdentity::usage = "TBD";
+statBin::usage = "TBD";
+statSmooth::usage = "TBD";
+statConvexHull::usage = "TBD";
+statDensity2D::usage = "TBD";
 
 (* Scales *)
 scaleXLinear2::usage   = "TBD";
@@ -51,10 +73,8 @@ Options[ticks2] = {numberOfMajorTicks2 -> 8, numberOfMinorTicksPerMajorTick2 -> 
 gridLines2::usage            = "TBD";
 majorGridLineStyle2::usage  = "TBD";
 minorGridLineStyle2::usage  = "TBD";
-geomText::usage  = "TBD";
 
 extractMappedValues::usage = "TBD";
-statIdentity::usage = "TBD";
 
 
 Options[gridLines2] = Options[ticks2];

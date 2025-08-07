@@ -28,12 +28,17 @@ Get["ggplot`geomErrorBar`"];
 Get["ggplot`geomErrorBoxes`"];
 Get["ggplot`geomErrorBand`"];
 Get["ggplot`geomDensity2DFilled`"];
+Get["ggplot`geomConvexHull`"];
 Get["ggplot`geomText`"];
 
 Get["ggplot`scale`"];
 Get["ggplot`scaleDate`"];
 Get["ggplot`scaleLog`"];
 Get["ggplot`statIdentity`"];
+Get["ggplot`statBin`"];
+Get["ggplot`statSmooth`"];
+Get["ggplot`statConvexHull`"];
+Get["ggplot`statDensity2D`"];
 
 Get["ggplot`legend`"];
 

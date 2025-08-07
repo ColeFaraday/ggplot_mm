@@ -7,69 +7,63 @@ BeginPackage["ggplot`"];
 Begin["`Private`"];
 
 (* geomErrorBand implementation *)
+ClearAll[geomErrorBand];
+geomErrorBand[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
+  "stat" -> statIdentity,
+  "geom" -> geomErrorBandRender,
+  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
+  "geomParams" -> FilterRules[{opts}, Options[geomErrorBandRender]]
+|>;
 
-Options[geomErrorBand] = {"data" -> {}, "x" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomErrorBand[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, groupbyKeys, output},
+Options[geomErrorBandRender] = {"data" -> {}, "x" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomErrorBandRender[statData_, opts : OptionsPattern[]] := Module[{output},
   (* Ensure all required parameters have been given *)
   If[OptionValue["x"] === Null || OptionValue["ymin"] === Null || OptionValue["ymax"] === Null, 
-    Message[ggplot::errorBandMissingBounds]; Throw[Null];];
+    Message[ggplot::errorBandMissingBounds]; Throw[Null]
+  ];
 
-  newDataset = OptionValue["data"];
-
-  (* Switch dates to absolute times *)
-  newDataset = Replace[newDataset, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
-
-  (* For each key necessary, reconcile the aesthetics and append them to the dataset as a column name i.e. "color_aes" -> somecolor *)
-  newDataset = reconcileAesthetics[newDataset, OptionValue["color"], "color"];
-  newDataset = reconcileAesthetics[newDataset, OptionValue["alpha"], "alpha"];
-
-  (* Group the data based on their aesthetic keys and then apply correct aesthetics while making error band primitives *)
-  groupbyKeys = Function[{#["color_aes"], #["alpha_aes"]}];
-  output = newDataset //
-            GroupBy[groupbyKeys] //
-            Values //
-            Map[{
-              #[[1, "color_aes"]],
-              #[[1, "alpha_aes"]],
-              (* Create filled polygon band for the grouped data *)
-              Module[{sortedData, xVals, yminVals, ymaxVals, upperPath, lowerPath, polygonPath},
-                (* Sort data by x values for proper polygon construction *)
-                sortedData = SortBy[#, Function[point,
-                  If[StringQ[OptionValue["x"]], point[OptionValue["x"]], OptionValue["x"][point]]
-                ]];
-                
-                (* Extract and scale the values *)
-                xVals = Map[Function[point,
-                  Module[{xVal},
-                    xVal = If[StringQ[OptionValue["x"]], point[OptionValue["x"]], OptionValue["x"][point]];
-                    OptionValue["xScaleFunc"][xVal]
-                  ]
-                ], sortedData];
-                
-                yminVals = Map[Function[point,
-                  Module[{yminVal},
-                    yminVal = If[StringQ[OptionValue["ymin"]], point[OptionValue["ymin"]], OptionValue["ymin"][point]];
-                    OptionValue["yScaleFunc"][yminVal]
-                  ]
-                ], sortedData];
-                
-                ymaxVals = Map[Function[point,
-                  Module[{ymaxVal},
-                    ymaxVal = If[StringQ[OptionValue["ymax"]], point[OptionValue["ymax"]], OptionValue["ymax"][point]];
-                    OptionValue["yScaleFunc"][ymaxVal]
-                  ]
-                ], sortedData];
-                
-                (* Create paths for upper and lower bounds *)
-                upperPath = Transpose[{xVals, ymaxVals}];
-                lowerPath = Reverse[Transpose[{xVals, yminVals}]];
-                
-                (* Combine into closed polygon *)
-                polygonPath = Join[upperPath, lowerPath];
-                
-                Polygon[polygonPath]
-              ]
-            } &];
+  (* Create filled polygon bands for each group *)
+  output = statData // Map[Function[group,
+    Module[{colorDir, alphaDir, sortedGroup, xvals, yminvals, ymaxvals, upperPath, lowerPath, polygonPath},
+      (* Get aesthetics from first point in group *)
+      colorDir = First[group]["color_aes"];
+      alphaDir = First[group]["alpha_aes"];
+      
+      (* Sort group by x values for proper polygon construction *)
+      sortedGroup = SortBy[group, Function[point,
+        If[StringQ[OptionValue["x"]], point[OptionValue["x"]], OptionValue["x"][point]]
+      ]];
+      
+      (* Extract and scale the values *)
+      xvals = Map[Function[point,
+        Module[{xval},
+          xval = If[StringQ[OptionValue["x"]], point[OptionValue["x"]], OptionValue["x"][point]];
+          OptionValue["xScaleFunc"][xval]
+        ]
+      ], sortedGroup];
+      
+      yminvals = Map[Function[point,
+        Module[{yminval},
+          yminval = If[StringQ[OptionValue["ymin"]], point[OptionValue["ymin"]], OptionValue["ymin"][point]];
+          OptionValue["yScaleFunc"][yminval]
+        ]
+      ], sortedGroup];
+      
+      ymaxvals = Map[Function[point,
+        Module[{ymaxval},
+          ymaxval = If[StringQ[OptionValue["ymax"]], point[OptionValue["ymax"]], OptionValue["ymax"][point]];
+          OptionValue["yScaleFunc"][ymaxval]
+        ]
+      ], sortedGroup];
+      
+      (* Create polygon paths *)
+      upperPath = Transpose[{xvals, ymaxvals}];
+      lowerPath = Reverse[Transpose[{xvals, yminvals}]];
+      polygonPath = Join[upperPath, lowerPath];
+      
+      {colorDir, alphaDir, Polygon[polygonPath]}
+    ]
+  ]];
 
   output
 ];
