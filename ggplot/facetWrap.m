@@ -99,7 +99,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
   Graphics[Flatten[processedLayers],
     Frame -> True,
     FrameLabel -> {None, None},
-    PlotRange -> Lookup[globalScales, "plotRange", Lookup[options, PlotRange, All]],
+    PlotRange -> globalScales["plotRange"],
     AspectRatio -> Lookup[options, AspectRatio, 7/10],
     ImageSize -> 150,
     Background -> Lookup[options, Background, None],

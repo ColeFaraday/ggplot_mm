@@ -193,8 +193,10 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
   If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
 
-  (* Calculate consistent plot ranges from full dataset for faceting *)
-  globalPlotRange = calculateGlobalPlotRange[processedData, heldArgs, xScaleFunc, yScaleFunc];
+  (* Calculate consistent plot ranges from full dataset for faceting, unless user provided PlotRange *)
+  globalPlotRange = Lookup[options, PlotRange, 
+    calculateGlobalPlotRange[processedData, heldArgs, xScaleFunc, yScaleFunc]
+  ];
 
   globalScales = <|
     "xScaleFunc" -> xScaleFunc, 
