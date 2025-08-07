@@ -189,10 +189,40 @@ layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_, frameLabe
   ]
 );
 
-layoutSinglePanel[panelGraphics_, legendInfo_, options_] := (
- 
-  First[panelGraphics] (* Just return the single panel *)
-);
+layoutSinglePanel[panelGraphics_, legendInfo_, options_] := Module[{singlePanel, panelOptions, panelPrimitives},
+  singlePanel = First[panelGraphics];
+  
+  (* Extract the graphics primitives and existing options from the panel *)
+  panelPrimitives = First[singlePanel];
+  panelOptions = Rest[List @@ singlePanel];
+  
+  (* Rebuild Graphics with user-specified options taking precedence *)
+  (* But preserve computed values like PlotRange from the panel *)
+  Graphics[
+    panelPrimitives,
+    (* Keep the panel's computed PlotRange and FrameLabel *)
+    PlotRange -> (PlotRange /. panelOptions),
+    FrameLabel -> (FrameLabel /. panelOptions), 
+    
+    (* Apply user-specified options that should override defaults *)
+    Frame -> Lookup[options, Frame, Frame /. panelOptions /. Frame -> True],
+    FrameStyle -> Lookup[options, FrameStyle, FrameStyle /. panelOptions /. FrameStyle -> Automatic],
+    FrameTicksStyle -> Lookup[options, FrameTicksStyle, FrameTicksStyle /. panelOptions /. FrameTicksStyle -> Automatic],
+    LabelStyle -> Lookup[options, LabelStyle, LabelStyle /. panelOptions /. LabelStyle -> Automatic],
+    PlotRangeClipping -> Lookup[options, PlotRangeClipping, PlotRangeClipping /. panelOptions /. PlotRangeClipping -> True],
+    AspectRatio -> Lookup[options, AspectRatio, AspectRatio /. panelOptions /. AspectRatio -> 7/10],
+    Background -> Lookup[options, Background, Background /. panelOptions /. Background -> None],
+    GridLines -> Lookup[options, GridLines, GridLines /. panelOptions /. GridLines -> None],
+    GridLinesStyle -> Lookup[options, GridLinesStyle, GridLinesStyle /. panelOptions /. GridLinesStyle -> Automatic],
+    
+    (* The key fix: allow user to override ImageSize *)
+    ImageSize -> Lookup[options, ImageSize, ImageSize /. panelOptions /. ImageSize -> Automatic],
+    ImageMargins -> Lookup[options, ImageMargins, ImageMargins /. panelOptions /. ImageMargins -> Automatic],
+    Prolog -> Lookup[options, Prolog, Prolog /. panelOptions /. Prolog -> {}],
+    Method -> Lookup[options, Method, Method /. panelOptions /. Method -> Automatic],
+    Axes -> Lookup[options, Axes, Axes /. panelOptions /. Axes -> False]
+  ]
+];
 
 layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_, frameLabel_] := Module[{
   arrangedPanels, stripLabels, finalGrid, plotGridOptions
