@@ -225,8 +225,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     ]
   ];
 
-  (* 4. Generate legends - placeholder for now *)
-  legendInfo = {};
+  (* 4. Generate legends from collected data *)
+  legendInfo = If[Length[allLegendData] > 0 && First[allLegendData] =!= {},
+    generateLegendsFromRequests[First[allLegendData], allMappings, options],
+    {}
+  ];
 
   (* 5. Layout panels + legends based on facet type *)
   graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options];
