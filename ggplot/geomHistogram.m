@@ -19,13 +19,15 @@ geomHistogram[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infi
 Options[geomHistogramRender] = {"data" -> {}, "x" -> Null, "y" -> "count", "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output},
   (* statData is grouped bin data from statBin *)
+  Print[statBin];
   output = statData // Map[Function[row,
     Module[{colorDir, alphaDir, xmin, xmax, yval, pos1, pos2},
       colorDir = row["color_aes"];
       alphaDir = row["alpha_aes"];
       xmin = OptionValue["xScaleFunc"][row["xmin"]];
       xmax = OptionValue["xScaleFunc"][row["xmax"]];
-      yval = OptionValue["yScaleFunc"][extractMappedValues[{row}, OptionValue["y"]][[1]]];
+      yval = OptionValue["yScaleFunc"][row["count"]];
+
       
       pos1 = {xmin, 0};
       pos2 = {xmax, yval};
@@ -33,7 +35,7 @@ geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output},
       {colorDir, alphaDir, Rectangle[pos1, pos2]}
     ]
   ]];
-
+  Print[output];
   output
 ];
 

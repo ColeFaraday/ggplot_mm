@@ -19,9 +19,7 @@ Options[statBin] = {
 statBin[opts : OptionsPattern[]] := Module[{
   dataset, processedData, groupedData, computedBins
 },
-  Print["statBin called with options: ", opts];
   dataset = OptionValue["data"];
-  Print["statBin dataset length: ", Length[dataset]];
   
   (* Ensure X has been given *)
   If[OptionValue["x"] === Null, 
@@ -45,9 +43,9 @@ statBin[opts : OptionsPattern[]] := Module[{
       ]
     ]
   ];
-  
+
   (* Compute bins for each group *)
-  computedBins = KeyValueMap[Function[{groupKey, groupData},
+  computedBins = Association[KeyValueMap[Function[{groupKey, groupData},
     Module[{xvals, bins, counts, binCenters, binResults},
       xvals = extractMappedValues[groupData, OptionValue["x"]];
       
@@ -55,7 +53,7 @@ statBin[opts : OptionsPattern[]] := Module[{
       xvals = Cases[xvals, _?NumericQ];
       
       If[Length[xvals] == 0, 
-        {}, (* Return empty if no numeric data *)
+        groupKey -> {}, (* Return empty if no numeric data *)
         (* Create histogram bins *)
         {bins, counts} = HistogramList[xvals, 
           If[OptionValue["binwidth"] =!= Automatic,
@@ -82,14 +80,13 @@ statBin[opts : OptionsPattern[]] := Module[{
           ]
         ], {binCenters, counts, Most[bins], Rest[bins]}];
         
-        binResults
+        groupKey -> binResults
       ]
     ]
-  ], groupedData];
+  ], groupedData]];
   
-  (* Flatten results while preserving groups *)
-  computedBins = KeyValueMap[Function[{groupKey, binData}, groupKey -> binData], computedBins];
-  Association[computedBins]
+  (* Return grouped results like other stat functions *)
+  computedBins
 ];
 
 End[];
