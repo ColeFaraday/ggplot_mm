@@ -121,7 +121,10 @@ Options[ggplot] = DeleteDuplicates[Join[{
   "showLegend" -> Automatic,
   "legendPosition" -> "right",
   "legendSpacing" -> 0.15,
-  FrameLabel -> Automatic
+  FrameLabel -> Automatic,
+  PlotStyle -> Automatic,
+  ImageSize -> Automatic,
+  ImageMargins -> Automatic
 }, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
@@ -169,7 +172,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   (* 2. Compute global scales for consistency across panels *)
   defaultXLabel = First@Cases[heldArgs, ("x" -> x_) :> ToString[x], {0, Infinity}];
   defaultYLabel = Quiet[Check[First@Cases[heldArgs, ("y" -> y_) :> ToString[y], {0, Infinity}], ""]];
-  frameLabel = Lookup[options, FrameLabel, OptionValue[ggplot, FrameLabel]];
+  frameLabel = Lookup[options, FrameLabel, Automatic];
   frameLabel = Which[
     frameLabel === Automatic,
     {defaultXLabel, defaultYLabel} /. str_?StringQ :> Style[str, Opacity[1], FontColor -> Black],

@@ -98,14 +98,31 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
   
   (* Return Graphics object for this panel *)
   Graphics[Flatten[processedLayers],
-    Frame -> True,
+    (* Core frame and layout options - apply to each panel *)
+    Frame -> Lookup[options, Frame, True],
     FrameLabel -> Lookup[options, FrameLabel, Automatic],
-    PlotRange -> globalScales["plotRange"],
-    AspectRatio -> Lookup[options, AspectRatio, 7/10],
-    ImageSize -> 150,
-    Background -> Lookup[options, Background, None],
     FrameStyle -> Lookup[options, FrameStyle, Automatic],
-    GridLines -> None
+    FrameTicksStyle -> Lookup[options, FrameTicksStyle, Automatic],
+    LabelStyle -> Lookup[options, LabelStyle, Automatic],
+    
+    (* Plot range and clipping - consistent across panels *)
+    PlotRange -> globalScales["plotRange"],
+    PlotRangeClipping -> Lookup[options, PlotRangeClipping, True],
+    
+    (* Panel-specific styling *)
+    AspectRatio -> Lookup[options, AspectRatio, 7/10],
+    Background -> Lookup[options, Background, None],
+    GridLines -> Lookup[options, GridLines, None],
+    GridLinesStyle -> Lookup[options, GridLinesStyle, Automatic],
+    
+    (* Size for individual panels (will be overridden by facet layout) *)
+    ImageSize -> 150,
+    ImageMargins -> Lookup[options, ImageMargins, Automatic],
+    
+    (* Content options *)
+    Prolog -> Lookup[options, Prolog, {}],
+    Method -> Lookup[options, Method, Automatic],
+    Axes -> Lookup[options, Axes, False]
   ]
 ];
 
@@ -178,7 +195,7 @@ layoutSinglePanel[panelGraphics_, legendInfo_, options_] := (
 );
 
 layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_, frameLabel_] := Module[{
-  arrangedPanels, stripLabels, finalGrid
+  arrangedPanels, stripLabels, finalGrid, plotGridOptions
 },
   
   (* Arrange panels into grid *)
@@ -189,8 +206,17 @@ layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_, frameLa
   (* TODO: Add legends based on scope - placeholder for now *)
   (* arrangedPanels = addLegendsToArrangement[arrangedPanels, legendInfo, options]; *)
   
-  (* Use the passed frameLabel for faceted plots, not from options *)
-  finalGrid = ResourceFunction["PlotGrid"][arrangedPanels, PlotLabels -> stripLabels, FrameLabel -> frameLabel];
+  (* Prepare options for the overall plot - these should apply to the final graphic *)
+  plotGridOptions = Sequence[
+    PlotLabels -> stripLabels, 
+    FrameLabel -> frameLabel,
+    ImageSize -> Lookup[options, ImageSize, Automatic],
+    ImageMargins -> Lookup[options, ImageMargins, Automatic],
+    Background -> Lookup[options, Background, Automatic]
+  ];
+  
+  (* Use ResourceFunction with comprehensive options *)
+  finalGrid = ResourceFunction["PlotGrid"][arrangedPanels, plotGridOptions];
   finalGrid
 ];
 End[];
