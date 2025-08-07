@@ -120,7 +120,8 @@ Options[ggplot] = DeleteDuplicates[Join[{
   "categoricalShapes" -> {"\[FilledCircle]", "\[FilledUpTriangle]", "\[FilledSquare]", "\[FivePointedStar]", "\[FilledDiamond]", "\[FilledRectangle]", "\[FilledDownTriangle]"},
   "showLegend" -> Automatic,
   "legendPosition" -> "right",
-  "legendSpacing" -> 0.15
+  "legendSpacing" -> 0.15,
+  FrameLabel -> Automatic
 }, Options[ListLinePlot], Options[ticks2], Options[gridLines2]]];
 (* Options for ggplot are set further below in themes *)
 Attributes[ggplot] = {HoldAllComplete};
@@ -178,6 +179,15 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     frameLabel
   ];
 
+  (* For faceted plots, don't add frame labels to individual panels *)
+  (* For single panels, add frame labels to the panel *)
+  panelOptions = If[facetSpec =!= facetIdentity[],
+    (* Faceted: remove frame labels from panel options *)
+    Append[DeleteCases[options, FrameLabel -> _], FrameLabel -> None],
+    (* Single panel: add computed frame labels to panel options *)
+    Append[DeleteCases[options, FrameLabel -> _], FrameLabel -> frameLabel]
+  ];
+
   xScaleType = reconcileXScales[heldArgs];
   yScaleType = reconcileYScales[heldArgs];
 
@@ -211,14 +221,14 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
       (* Single panel case - process directly *)
       KeyValueMap[
         Function[{panelKey, panelData},
-          processPanelLayers[panelData, layers, globalScales, options]
+          processPanelLayers[panelData, layers, globalScales, panelOptions]
         ],
         facetResult["panels"]
       ],
       (* Faceted case - process panels in the correct order to match strip labels *)
       Map[
         Function[panelKey,
-          processPanelLayers[facetResult["panels"][panelKey], layers, globalScales, options]
+          processPanelLayers[facetResult["panels"][panelKey], layers, globalScales, panelOptions]
         ],
         facetResult["panelOrder"]
       ]
@@ -229,7 +239,8 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   legendInfo = {};
 
   (* 5. Layout panels + legends based on facet type *)
-  graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options];
+  (* Pass both the original computed frameLabel and the facetResult for layout decisions *)
+  graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options, frameLabel];
 
   graphic
 ]];

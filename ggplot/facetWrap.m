@@ -99,7 +99,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
   (* Return Graphics object for this panel *)
   Graphics[Flatten[processedLayers],
     Frame -> True,
-    FrameLabel -> {None, None},
+    FrameLabel -> Lookup[options, FrameLabel, Automatic],
     PlotRange -> globalScales["plotRange"],
     AspectRatio -> Lookup[options, AspectRatio, 7/10],
     ImageSize -> 150,
@@ -155,7 +155,7 @@ resolveLayerAesthetics[panelData_, layerAesthetics_, globalOptions_] := Module[{
 ];
 
 (* Layout functions for different facet types *)
-layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_] := (
+layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_, frameLabel_] := (
   
   Which[
     facetResult["type"] === "identity",
@@ -164,7 +164,7 @@ layoutFacetedPlot[panelGraphics_, legendInfo_, facetResult_, options_] := (
     
     facetResult["type"] === "wrap", 
     (
-     layoutWrappedPanels[panelGraphics, legendInfo, facetResult, options]),
+     layoutWrappedPanels[panelGraphics, legendInfo, facetResult, options, frameLabel]),
     
     True,
     (
@@ -177,7 +177,7 @@ layoutSinglePanel[panelGraphics_, legendInfo_, options_] := (
   First[panelGraphics] (* Just return the single panel *)
 );
 
-layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_] := Module[{
+layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_, frameLabel_] := Module[{
   arrangedPanels, stripLabels, finalGrid
 },
   
@@ -189,8 +189,8 @@ layoutWrappedPanels[panelGraphics_, legendInfo_, facetResult_, options_] := Modu
   (* TODO: Add legends based on scope - placeholder for now *)
   (* arrangedPanels = addLegendsToArrangement[arrangedPanels, legendInfo, options]; *)
   
-  (* Use ResourceFunction for grid layout *)
-  finalGrid = ResourceFunction["PlotGrid"][arrangedPanels, PlotLabels -> stripLabels];
+  (* Use the passed frameLabel for faceted plots, not from options *)
+  finalGrid = ResourceFunction["PlotGrid"][arrangedPanels, PlotLabels -> stripLabels, FrameLabel -> frameLabel];
   finalGrid
 ];
 End[];
