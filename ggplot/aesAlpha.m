@@ -1,10 +1,7 @@
 (* Mathem(* Default function if alpha is not being used as an aesthetic *)
 reconcileAesthetics[dataset_, Null, "alpha"] := Module[{newDataset},
   newDataset = dataset;
-  (* Only add alpha_aes if it doesn't already exist (for faceting compatibility) *)
-  If[!KeyExistsQ[First[newDataset], "alpha_aes"],
-    newDataset = newDataset // Map[Append[#, "alpha_aes" -> Opacity[1.]] &]
-  ];
+  newDataset = newDataset // Map[Append[#, "alpha_aes" -> Opacity[1]] &];
   newDataset
 ];Source File *)
 (* Created by Mathematica Plugin for IntelliJ IDEA *)

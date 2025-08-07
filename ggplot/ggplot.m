@@ -107,6 +107,12 @@ argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLi
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
   "data" -> {},
+  "color" -> Null,
+  "size" -> Null,
+  "alpha" -> Null,
+  "shape" -> Null,
+  "thickness" -> Null,
+  "group" -> Null,
   "categoricalColors" -> Automatic,
   "sequentialColors" -> {Blue, White, Red},
   "divergingColors" -> {Blue, White, Red},
@@ -120,15 +126,11 @@ Options[ggplot] = DeleteDuplicates[Join[{
 Attributes[ggplot] = {HoldAllComplete};
 ggplot[ds_?validDatasetQ, args___?argPatternQ] := ggplot["data" -> ds, args];
 ggplot[args___?argPatternQ][ds_?validDatasetQ] := ggplot["data" -> ds, args];
-ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo, layers, facetSpec, facetResult, globalScales, panelGraphics, allLegendData},
+ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] > 0 := Catch[Module[{heldArgs, options, dataset, processedData, allMappings, defaultXLabel, defaultYLabel, frameLabel, points, lines, paths, smoothLines, columns, abLines, hLines, vLines, histograms, graphicsPrimitives, xScaleType, yScaleType, xScaleFunc, yScaleFunc, xDiscreteLabels, yDiscreteLabels, xTickFunc, yTickFunc, xGridLineFunc, yGridLineFunc, legendInfo, legendGraphics, showLegend, graphic, facetInfo, layers, facetSpec, facetResult, globalScales, panelGraphics, allLegendData},
   
-  Print["[ggplot] Starting new pipeline"];
   heldArgs = Hold[args];
-  Print["[ggplot] heldArgs length:", Length[Unevaluated[args]]];
   options = Cases[heldArgs, _Rule, 1];
-  Print["[ggplot] options count:", Length[options]];
   dataset = Lookup[options, "data", {}];
-  Print["[ggplot] dataset length:", Length[dataset]];
 
   (* Extract layers (geom constructors) *)
   layers = Cases[heldArgs, 
@@ -138,32 +140,34 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
      geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
     {0, Infinity}
   ];
-  Print["[ggplot] layers found:", Length[layers], " layers"];
-  Print["[ggplot] layer types:", Head /@ layers];
 
   (* Extract facet specification *)
   facetSpec = Cases[heldArgs, facetWrap[variable_, opts___] :> facetWrap[variable, opts], {0, Infinity}];
-  Print["[ggplot] facetWrap cases found:", Length[facetSpec]];
   facetSpec = If[Length[facetSpec] > 0, First[facetSpec], facetIdentity[]];
-  Print["[ggplot] facetSpec head:", Head[facetSpec]];
+
+  (* 0. Global aesthetic reconciliation before faceting *)
+  processedData = dataset;
+  
+  (* Collect only global aesthetic mappings *)
+  allMappings = collectGlobalAestheticMappings[options];
+
+  (* Apply aesthetic reconciliation globally *)
+  processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
+  processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
+  processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
+  processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
+  processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
+  processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
 
   (* 1. Apply faceting to get panel specifications *)
-  Print["[ggplot] Step 1: Applying faceting"];
   facetResult = If[facetSpec === facetIdentity[], 
-    Print["[ggplot] Using identity facet"];
-    <|"type" -> "identity", "panels" -> <|"single" -> dataset|>|>,
-    Print["[ggplot] Calling facet function"];
-    facetSpec[dataset]  (* Facet function transforms the data *)
+    <|"type" -> "identity", "panels" -> <|"single" -> processedData|>|>,
+    facetSpec[processedData]  (* Facet function transforms the data *)
   ];
-  Print["[ggplot] facetResult type:", facetResult["type"]];
-  Print["[ggplot] facetResult panels keys:", Keys[facetResult["panels"]]];
-  Print["[ggplot] facetResult:", facetResult];
 
   (* 2. Compute global scales for consistency across panels *)
-  Print["[ggplot] Step 2: Computing global scales"];
   defaultXLabel = First@Cases[heldArgs, ("x" -> x_) :> ToString[x], {0, Infinity}];
   defaultYLabel = Quiet[Check[First@Cases[heldArgs, ("y" -> y_) :> ToString[y], {0, Infinity}], ""]];
-  Print["[ggplot] labels - x:", defaultXLabel, ", y:", defaultYLabel];
   frameLabel = Lookup[options, FrameLabel, OptionValue[ggplot, FrameLabel]];
   frameLabel = Which[
     frameLabel === Automatic,
@@ -173,11 +177,9 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     True,
     frameLabel
   ];
-  Print["[ggplot] frameLabel head:", Head[frameLabel]];
 
   xScaleType = reconcileXScales[heldArgs];
   yScaleType = reconcileYScales[heldArgs];
-  Print["[ggplot] scale types - x:", xScaleType, ", y:", yScaleType];
 
   xScaleFunc = If[xScaleType == "Discrete",
     createDiscreteScaleFunc["x", heldArgs],
@@ -187,44 +189,101 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     createDiscreteScaleFunc["y", heldArgs],
     With[{f = ToExpression[yScaleType /. "Linear" | "Date" -> "Identity"]}, Function[f[#]]]
   ];
-  Print["[ggplot] scale functions created"];
 
-  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]; Print["[ggplot] xDiscreteLabels length:", Length[xDiscreteLabels]]];
-  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]; Print["[ggplot] yDiscreteLabels length:", Length[yDiscreteLabels]]];
+  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
+  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
+
+  (* Calculate consistent plot ranges from full dataset for faceting, unless user provided PlotRange *)
+  globalPlotRange = Lookup[options, PlotRange, 
+    calculateGlobalPlotRange[processedData, heldArgs, xScaleFunc, yScaleFunc]
+  ];
 
   globalScales = <|
     "xScaleFunc" -> xScaleFunc, 
-    "yScaleFunc" -> yScaleFunc
+    "yScaleFunc" -> yScaleFunc,
+    "plotRange" -> globalPlotRange
   |>;
-  Print["[ggplot] globalScales created"];
+  
 
   (* 3. Process each panel through stat→geom pipeline *)
-  Print["[ggplot] Step 3: Processing panels"];
   {panelGraphics, allLegendData} = Reap[
-    KeyValueMap[
-      Function[{panelKey, panelData},
-        Print["[ggplot] Processing panel:", panelKey, ", data length:", Length[panelData]];
-        processPanelLayers[panelData, layers, globalScales, options]
+    If[facetResult["type"] === "identity",
+      (* Single panel case - process directly *)
+      KeyValueMap[
+        Function[{panelKey, panelData},
+          processPanelLayers[panelData, layers, globalScales, options]
+        ],
+        facetResult["panels"]
       ],
-      facetResult["panels"]
+      (* Faceted case - process panels in the correct order to match strip labels *)
+      Map[
+        Function[panelKey,
+          processPanelLayers[facetResult["panels"][panelKey], layers, globalScales, options]
+        ],
+        facetResult["panelOrder"]
+      ]
     ]
   ];
-  Print["[ggplot] panelGraphics length:", Length[panelGraphics]];
-  Print["[ggplot] panelGraphics heads:", Head /@ panelGraphics];
-  Print["[ggplot] panelGraphics:", panelGraphics];
 
   (* 4. Generate legends - placeholder for now *)
-  Print["[ggplot] Step 4: Generating legends"];
   legendInfo = {};
-  Print["[ggplot] legendInfo length:", Length[legendInfo]];
 
   (* 5. Layout panels + legends based on facet type *)
-  Print["[ggplot] Step 5: Layout"];
   graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options];
-  Print["[ggplot] final graphic:", Head[graphic]];
 
   graphic
 ]];
+
+(* Helper function to collect global aesthetic mappings only *)
+collectGlobalAestheticMappings[options_] := Module[{globalMappings},
+  
+  (* Get only global aesthetic mappings from ggplot options *)
+  globalMappings = <|
+    "color" -> Lookup[options, "color", Null],
+    "size" -> Lookup[options, "size", Null], 
+    "alpha" -> Lookup[options, "alpha", Null],
+    "shape" -> Lookup[options, "shape", Null],
+    "thickness" -> Lookup[options, "thickness", Null],
+    "group" -> Lookup[options, "group", Null]
+  |>;
+  
+  globalMappings
+];
+
+(* Calculate consistent plot ranges from the full dataset for faceting *)
+calculateGlobalPlotRange[processedData_, heldArgs_, xScaleFunc_, yScaleFunc_] := Module[{
+  xMapping, yMapping, xValues, yValues, scaledXValues, scaledYValues, xRange, yRange
+},
+  (* Extract x and y mappings from arguments *)
+  xMapping = First@Cases[heldArgs, ("x" -> x_) :> x, {0, Infinity}, 1];
+  yMapping = First@Cases[heldArgs, ("y" -> y_) :> y, {0, Infinity}, 1];
+  
+  If[xMapping === $Failed || yMapping === $Failed,
+    Return[All] (* Fallback if mappings not found *)
+  ];
+  
+  (* Extract x and y values using the mapping functions *)
+  xValues = extractMappedValues[processedData, xMapping];
+  yValues = extractMappedValues[processedData, yMapping];
+  
+  If[Length[xValues] == 0 || Length[yValues] == 0,
+    Return[All] (* Fallback if no data *)
+  ];
+  
+  (* Apply scale transformations *)
+  scaledXValues = xScaleFunc /@ xValues;
+  scaledYValues = yScaleFunc /@ yValues;
+  
+  (* Calculate ranges with small padding *)
+  xRange = MinMax[scaledXValues];
+  yRange = MinMax[scaledYValues];
+  
+  (* Add 5% padding to ranges *)
+  xRange = xRange + {-1, 1} * 0.1 * (xRange[[2]] - xRange[[1]]);
+  yRange = yRange + {-1, 1} * 0.1 * (yRange[[2]] - yRange[[1]]);
+  
+  {xRange, yRange}
+];
 
 (* Helper to extract mapped values for x, y, or any mapping (string or function) *)
 extractMappedValues[data_, mapping_] := 
@@ -236,4 +295,4 @@ extractMappedValues[data_, mapping_] :=
 
 End[];
 
-EndPackage[]
+EndPackage[];

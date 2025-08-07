@@ -10,10 +10,7 @@ Begin["`Private`"];
 (* Default function if color is not being used as an aesthetic *)
 reconcileAesthetics[dataset_, Null, "color"] := Module[{newDataset},
   newDataset = dataset;
-  (* Only add color_aes if it doesn't already exist (for faceting compatibility) *)
-  If[!KeyExistsQ[First[newDataset], "color_aes"],
-    newDataset = newDataset // Map[Append[#, "color_aes" -> Black] &]
-  ];
+  newDataset = newDataset // Map[Append[#, "color_aes" -> Black] &];
   newDataset
 ];
 
@@ -27,12 +24,7 @@ reconcileAesthetics[dataset_, color_?ColorQ, "color"] := Module[{newDataset},
 (* If a string is passed in, then assume that's the key in the dataset on how to color the data. Then must determine whether the data is discrete or not *)
 reconcileAesthetics[dataset_, key_?StringQ, "color"] /; keyExistsQAll[dataset, key] := Module[{newDataset, data, colorFunc, discreteDataQ, keys, minMax, categoricalColors, continuousColors},
   newDataset = dataset;
-  
-  (* If color_aes already exists, don't override it (for faceting compatibility) *)
-  If[KeyExistsQ[First[newDataset], "color_aes"],
-    Return[newDataset]
-  ];
-  
+
   data = newDataset[[All, key]];
   discreteDataQ = isDiscreteDataQ[data];
   If[discreteDataQ,
