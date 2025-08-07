@@ -207,11 +207,21 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   (* 3. Process each panel through stat→geom pipeline *)
   {panelGraphics, allLegendData} = Reap[
-    KeyValueMap[
-      Function[{panelKey, panelData},
-        processPanelLayers[panelData, layers, globalScales, options]
+    If[facetResult["type"] === "identity",
+      (* Single panel case - process directly *)
+      KeyValueMap[
+        Function[{panelKey, panelData},
+          processPanelLayers[panelData, layers, globalScales, options]
+        ],
+        facetResult["panels"]
       ],
-      facetResult["panels"]
+      (* Faceted case - process panels in the correct order to match strip labels *)
+      Map[
+        Function[panelKey,
+          processPanelLayers[facetResult["panels"][panelKey], layers, globalScales, options]
+        ],
+        facetResult["panelOrder"]
+      ]
     ]
   ];
 

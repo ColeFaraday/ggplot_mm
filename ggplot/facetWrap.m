@@ -55,7 +55,8 @@ facetWrap[variable_, opts : OptionsPattern[]] := Function[dataset,
 (* Identity facet for non-faceted plots *)
 facetIdentity[] := <|
   "type" -> "identity", 
-  "panels" -> <|"single" -> "all"|>
+  "panels" -> <|"single" -> "all"|>,
+  "panelOrder" -> {"single"}
 |>;
 
 (* Shared panel processing function - used by ALL facet types *)
