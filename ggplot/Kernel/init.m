@@ -29,6 +29,7 @@ Get["ggplot`geomHistogram`"];
 Get["ggplot`geomBar`"];
 Get["ggplot`geomBoxes`"];
 Get["ggplot`geomBand`"];
+Get["ggplot`geomDensity2D`"];
 Get["ggplot`geomDensity2DFilled`"];
 Get["ggplot`geomConvexHull`"];
 Get["ggplot`geomText`"];

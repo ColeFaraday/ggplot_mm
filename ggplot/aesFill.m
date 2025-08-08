@@ -17,7 +17,6 @@ reconcileAesthetics[dataset_, _Missing, "fill"] := reconcileAesthetics[dataset, 
 
 (* If fill is given as an actual color, then assume that's the fill color the user wants everything to be *)
 reconcileAesthetics[dataset_, color_?ColorQ, "fill"] := Module[{newDataset},
-  Print["Setting fill to color: ", color];
   newDataset = dataset;
   newDataset = newDataset // Map[Append[#, "fill_aes" -> color] &];
   newDataset
