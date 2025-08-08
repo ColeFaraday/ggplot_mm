@@ -23,8 +23,8 @@ geomBand[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}
   |>
 ];
 
-Options[geomBandRender] = {"data" -> {}, "x" -> "x", "ymin" -> "ymin", "ymax" -> "ymax", "color" -> Null, "fill" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomBandRender[statData_, opts : OptionsPattern[]] := Module[{output, xVals, yMinVals, yMaxVals, sortedIndices, scaledXVals, scaledYMinVals, scaledYMaxVals, upperPath, lowerPath, polygonPath, colorDir, alphaDir, fillDir},
+Options[geomBandRender] = {"data" -> {}, "x" -> "x", "ymin" -> "ymin", "ymax" -> "ymax", "color" -> Null, "fill" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "thickness" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomBandRender[statData_, opts : OptionsPattern[]] := Module[{output, xVals, yMinVals, yMaxVals, sortedIndices, scaledXVals, scaledYMinVals, scaledYMaxVals, upperPath, lowerPath, polygonPath, colorDir, alphaDir, fillDir, lineAlphaDir, thicknessDir},
   (* Ensure all required parameters have been given *)
   If[OptionValue["x"] === Null || OptionValue["ymin"] === Null || OptionValue["ymax"] === Null, 
     Message[ggplot::errorBandMissingBounds]; Throw[Null]
@@ -49,14 +49,23 @@ geomBandRender[statData_, opts : OptionsPattern[]] := Module[{output, xVals, yMi
   
   (* Handle fill aesthetic - inherit from color if not specified *)
   fillDir = Lookup[First[statData], "fill_aes", colorDir];
-  Print[First[statData]];
+  
+  (* Handle lineAlpha aesthetic for polygon outline *)
+  lineAlphaDir = Lookup[First[statData], "lineAlpha_aes", Opacity[1]];
+  
+  (* Handle thickness aesthetic for polygon outline *)
+  thicknessDir = Lookup[First[statData], "thickness_aes", Automatic];
   
   (* Create polygon paths *)
   upperPath = Transpose[{scaledXVals, scaledYMaxVals}];
   lowerPath = Reverse[Transpose[{scaledXVals, scaledYMinVals}]];
   polygonPath = Join[upperPath, lowerPath];
 
-  output = {fillDir, alphaDir, Polygon[polygonPath]};
+  output = {
+    EdgeForm[{colorDir, lineAlphaDir, thicknessDir}], (* Polygon outline with color, lineAlpha, and thickness *)
+    fillDir, alphaDir, (* Fill color and fill alpha *)
+    Polygon[polygonPath]
+  };
 
   output
 ];

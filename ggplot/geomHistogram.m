@@ -24,13 +24,14 @@ geomHistogram[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infi
   |>
 ];
 
-Options[geomHistogramRender] = {"data" -> {}, "x" -> Null, "y" -> "count", "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+Options[geomHistogramRender] = {"data" -> {}, "x" -> Null, "y" -> "count", "color" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output},
   (* statData is grouped bin data from statBin *)
   output = statData // Map[Function[row,
-    Module[{colorDir, alphaDir, xmin, xmax, yval, pos1, pos2},
+    Module[{colorDir, alphaDir, lineAlphaDir, xmin, xmax, yval, pos1, pos2},
       colorDir = row["color_aes"];
       alphaDir = row["alpha_aes"];
+      lineAlphaDir = Lookup[row, "lineAlpha_aes", Opacity[1]];
       xmin = OptionValue["xScaleFunc"][row["xmin"]];
       xmax = OptionValue["xScaleFunc"][row["xmax"]];
       yval = OptionValue["yScaleFunc"][row["count"]];
@@ -39,7 +40,11 @@ geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output},
       pos1 = {xmin, 0};
       pos2 = {xmax, yval};
       
-      {colorDir, alphaDir, Rectangle[pos1, pos2]}
+      {
+        EdgeForm[{colorDir, lineAlphaDir}], (* Rectangle outline with color and lineAlpha *)
+        colorDir, alphaDir, (* Fill color and fill alpha *)
+        Rectangle[pos1, pos2]
+      }
     ]
   ]];
   output

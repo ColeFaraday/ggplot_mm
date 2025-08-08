@@ -37,9 +37,15 @@ statBin[opts : OptionsPattern[]] := Module[{
     (* Group only by the group aesthetic *)
     GroupBy[processedData, Function[row, row["group_aes"]]],
     (* Group by all aesthetic values - rows with same aesthetics = same group *)
-    GroupBy[processedData, 
-      Function[row,
-        {Lookup[row, "color_aes", Black], Lookup[row, "alpha_aes", Opacity[1]]}
+    Module[{aestheticKeys, firstRow},
+      firstRow = First[processedData, <||>];
+      aestheticKeys = Select[Keys[firstRow], StringEndsQ[#, "_aes"] &];
+      
+      (* Group by all aesthetic values present in the data *)
+      GroupBy[processedData, 
+        Function[row, 
+          Association[Table[key -> Lookup[row, key, Missing["NotAvailable"]], {key, aestheticKeys}]]
+        ]
       ]
     ]
   ];

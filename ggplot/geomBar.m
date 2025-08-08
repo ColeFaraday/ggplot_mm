@@ -7,14 +7,14 @@ BeginPackage["ggplot`"];
 
 Begin["`Private`"];
 
-(* geomErrorBar implementation *)
-ClearAll[geomErrorBar];
-geomErrorBar[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+(* geomBar implementation *)
+ClearAll[geomBar];
+geomBar[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
   statFunc, geomFunc
 },
   (* Allow overriding default stat and geom *)
   statFunc = Lookup[Association[opts], "stat", statIdentity];
-  geomFunc = Lookup[Association[opts], "geom", geomErrorBarRender];
+  geomFunc = Lookup[Association[opts], "geom", geomBarRender];
   
   <|
     "stat" -> statFunc,
@@ -24,8 +24,8 @@ geomErrorBar[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infin
   |>
 ];
 
-Options[geomErrorBarRender] = {"data" -> {}, "xmin" -> Null, "xmax" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "capSize" -> 0.02, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomErrorBarRender[statData_, opts : OptionsPattern[]] := Module[{output, capSize},
+Options[geomBarRender] = {"data" -> {}, "xmin" -> Null, "xmax" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "capSize" -> 0.02, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomBarRender[statData_, opts : OptionsPattern[]] := Module[{output, capSize},
   (* Ensure all required parameters have been given *)
   If[OptionValue["xmin"] === Null || OptionValue["xmax"] === Null || OptionValue["ymin"] === Null || OptionValue["ymax"] === Null, 
     Message[ggplot::errorBarMissingBounds]; Throw[Null]
@@ -35,9 +35,10 @@ geomErrorBarRender[statData_, opts : OptionsPattern[]] := Module[{output, capSiz
 
   (* Create error bar lines for each data point *)
   output = statData // Map[Function[row,
-    Module[{colorDir, alphaDir, thicknessDir, xmin, xmax, ymin, ymax, xcenter, ycenter, xminVal, xmaxVal, yminVal, ymaxVal},
+    Module[{colorDir, alphaDir, lineAlphaDir, thicknessDir, xmin, xmax, ymin, ymax, xcenter, ycenter, xminVal, xmaxVal, yminVal, ymaxVal},
       colorDir = row["color_aes"];
       alphaDir = row["alpha_aes"];
+      lineAlphaDir = Lookup[row, "lineAlpha_aes", Opacity[1]];
       thicknessDir = row["thickness_aes"];
       
       (* Calculate bound values - handle both string keys and functions *)
@@ -54,7 +55,7 @@ geomErrorBarRender[statData_, opts : OptionsPattern[]] := Module[{output, capSiz
       xcenter = (xmin + xmax)/2;
       ycenter = (ymin + ymax)/2;
       
-      {colorDir, alphaDir, thicknessDir, Sequence @@ {
+      {colorDir, lineAlphaDir, thicknessDir, Sequence @@ {
         (* Horizontal error bar *)
         Line[{{xmin, ycenter}, {xmax, ycenter}}],
         (* Vertical error bar *)

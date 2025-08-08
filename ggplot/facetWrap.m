@@ -136,6 +136,7 @@ extractLayerAesthetics[layerOpts_] := Module[{layerAesthetics},
     "alpha" -> Lookup[layerOpts, "alpha", Null],
     "shape" -> Lookup[layerOpts, "shape", Null],
     "thickness" -> Lookup[layerOpts, "thickness", Null],
+    "lineAlpha" -> Lookup[layerOpts, "lineAlpha", Null],
     "group" -> Lookup[layerOpts, "group", Null]
   |>;
   layerAesthetics
@@ -168,6 +169,10 @@ resolveLayerAesthetics[panelData_, layerAesthetics_, globalOptions_] := Module[{
   
   If[layerAesthetics["group"] =!= Null,
     processedData = reconcileAesthetics[processedData, layerAesthetics["group"], "group"]
+  ];
+
+  If[layerAesthetics["lineAlpha"] =!= Null,
+    processedData = reconcileAesthetics[processedData, layerAesthetics["lineAlpha"], "lineAlpha"]
   ];
   
   processedData

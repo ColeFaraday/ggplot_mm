@@ -6,14 +6,14 @@ BeginPackage["ggplot`"];
 
 Begin["`Private`"];
 
-(* geomErrorBoxes implementation *)
-ClearAll[geomErrorBoxes];
-geomErrorBoxes[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+(* geomBoxes implementation *)
+ClearAll[geomBoxes];
+geomBoxes[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
   statFunc, geomFunc
 },
   (* Allow overriding default stat and geom *)
   statFunc = Lookup[Association[opts], "stat", statIdentity];
-  geomFunc = Lookup[Association[opts], "geom", geomErrorBoxesRender];
+  geomFunc = Lookup[Association[opts], "geom", geomBoxesRender];
   
   <|
     "stat" -> statFunc,
@@ -23,8 +23,8 @@ geomErrorBoxes[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Inf
   |>
 ];
 
-Options[geomErrorBoxesRender] = {"data" -> {}, "xmin" -> Null, "xmax" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomErrorBoxesRender[statData_, opts : OptionsPattern[]] := Module[{output},
+Options[geomBoxesRender] = {"data" -> {}, "xmin" -> Null, "xmax" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomBoxesRender[statData_, opts : OptionsPattern[]] := Module[{output},
   (* Ensure all required parameters have been given *)
   If[OptionValue["xmin"] === Null || OptionValue["xmax"] === Null || OptionValue["ymin"] === Null || OptionValue["ymax"] === Null, 
     Message[ggplot::errorBoxMissingBounds]; Throw[Null]
@@ -32,9 +32,10 @@ geomErrorBoxesRender[statData_, opts : OptionsPattern[]] := Module[{output},
 
   (* Create error box rectangles for each data point *)
   output = statData // Map[Function[row,
-    Module[{colorDir, alphaDir, xmin, xmax, ymin, ymax, xminVal, xmaxVal, yminVal, ymaxVal},
+    Module[{colorDir, alphaDir, lineAlphaDir, xmin, xmax, ymin, ymax, xminVal, xmaxVal, yminVal, ymaxVal},
       colorDir = row["color_aes"];
       alphaDir = row["alpha_aes"];
+      lineAlphaDir = Lookup[row, "lineAlpha_aes", Opacity[1]];
       
       (* Calculate bound values - handle both string keys and functions *)
       xminVal = If[StringQ[OptionValue["xmin"]], row[OptionValue["xmin"]], OptionValue["xmin"][row]];
@@ -49,7 +50,11 @@ geomErrorBoxesRender[statData_, opts : OptionsPattern[]] := Module[{output},
       ymax = OptionValue["yScaleFunc"][ymaxVal];
       
       (* Create rectangle from bounds *)
-      {colorDir, alphaDir, Rectangle[{xmin, ymin}, {xmax, ymax}]}
+      {
+        EdgeForm[{colorDir, lineAlphaDir}], (* Rectangle outline with color and lineAlpha *)
+        colorDir, alphaDir, (* Fill color and fill alpha *)
+        Rectangle[{xmin, ymin}, {xmax, ymax}]
+      }
     ]
   ]];
 

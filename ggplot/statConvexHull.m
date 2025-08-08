@@ -34,10 +34,15 @@ statConvexHull[opts : OptionsPattern[]] := Module[{
     (* Group only by the group aesthetic *)
     GroupBy[processedData, Function[row, row["group_aes"]]],
     (* Group by all aesthetic values *)
-    GroupBy[processedData, 
-      Function[row,
-        {Lookup[row, "color_aes", Black], Lookup[row, "alpha_aes", Opacity[1]], 
-         Lookup[row, "thickness_aes", Automatic]}
+    Module[{aestheticKeys, firstRow},
+      firstRow = First[processedData, <||>];
+      aestheticKeys = Select[Keys[firstRow], StringEndsQ[#, "_aes"] &];
+      
+      (* Group by all aesthetic values present in the data *)
+      GroupBy[processedData, 
+        Function[row, 
+          Association[Table[key -> Lookup[row, key, Missing["NotAvailable"]], {key, aestheticKeys}]]
+        ]
       ]
     ]
   ];
