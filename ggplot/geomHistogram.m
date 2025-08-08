@@ -24,29 +24,62 @@ geomHistogram[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infi
   |>
 ];
 
-Options[geomHistogramRender] = {"data" -> {}, "x" -> Null, "y" -> "count", "color" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output},
-  (* statData is grouped bin data from statBin *)
-  output = statData // Map[Function[row,
-    Module[{colorDir, alphaDir, lineAlphaDir, xmin, xmax, yval, pos1, pos2},
-      colorDir = row["color_aes"];
-      alphaDir = row["alpha_aes"];
-      lineAlphaDir = Lookup[row, "lineAlpha_aes", Opacity[1]];
-      xmin = OptionValue["xScaleFunc"][row["xmin"]];
-      xmax = OptionValue["xScaleFunc"][row["xmax"]];
-      yval = OptionValue["yScaleFunc"][row["count"]];
+Options[geomHistogramRender] = {"data" -> {}, "x" -> Null, "y" -> "count", "color" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "filled" -> True, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomHistogramRender[statData_, opts : OptionsPattern[]] := Module[{output, filled},
+  filled = OptionValue["filled"];
+  
+  If[filled,
+    (* Standard filled rectangles *)
+    output = statData // Map[Function[row,
+      Module[{colorDir, alphaDir, lineAlphaDir, xmin, xmax, yval, pos1, pos2},
+        colorDir = row["color_aes"];
+        alphaDir = row["alpha_aes"];
+        lineAlphaDir = Lookup[row, "lineAlpha_aes", Opacity[1]];
+        xmin = OptionValue["xScaleFunc"][row["xmin"]];
+        xmax = OptionValue["xScaleFunc"][row["xmax"]];
+        yval = OptionValue["yScaleFunc"][row["count"]];
 
+        pos1 = {xmin, 0};
+        pos2 = {xmax, yval};
+        
+        {
+          EdgeForm[{colorDir, lineAlphaDir}], (* Rectangle outline with color and lineAlpha *)
+          colorDir, alphaDir, (* Fill color and fill alpha *)
+          Rectangle[pos1, pos2]
+        }
+      ]
+    ]],
+    
+    (* Outline only - create a single polygon outline *)
+    Module[{sortedData, points, colorDir, lineAlphaDir},
+      (* Sort data by xmin for proper outline construction *)
+      sortedData = SortBy[statData, #["xmin"] &];
       
-      pos1 = {xmin, 0};
-      pos2 = {xmax, yval};
+      (* Get aesthetics from first bar *)
+      colorDir = First[sortedData]["color_aes"];
+      lineAlphaDir = Lookup[First[sortedData], "lineAlpha_aes", Opacity[1]];
       
-      {
-        EdgeForm[{colorDir, lineAlphaDir}], (* Rectangle outline with color and lineAlpha *)
-        colorDir, alphaDir, (* Fill color and fill alpha *)
-        Rectangle[pos1, pos2]
+      (* Construct proper histogram outline *)
+      points = Join[
+        (* Start at bottom-left of first bar *)
+        {{OptionValue["xScaleFunc"][First[sortedData]["xmin"]], 0}},
+        (* Go up and trace the top of each bar from left to right *)
+        Flatten[Table[{
+          {OptionValue["xScaleFunc"][bar["xmin"]], OptionValue["yScaleFunc"][bar["count"]]},
+          {OptionValue["xScaleFunc"][bar["xmax"]], OptionValue["yScaleFunc"][bar["count"]]}
+        }, {bar, sortedData}], 1],
+        (* End at bottom-right of last bar *)
+        {{OptionValue["xScaleFunc"][Last[sortedData]["xmax"]], 0}},
+        (* Close the polygon by returning to start *)
+        {{OptionValue["xScaleFunc"][First[sortedData]["xmin"]], 0}}
+      ];
+      
+      output = {
+        {colorDir, lineAlphaDir, Line[points]}
       }
     ]
-  ]];
+  ];
+  
   output
 ];
 
