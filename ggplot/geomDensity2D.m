@@ -79,7 +79,7 @@ geomDensity2DRender[statData_, opts : OptionsPattern[]] := Module[{output, conto
     Frame -> False,
     Axes -> False,
     PlotRangePadding -> None,
-		PlotRange->plotRangeAll
+		PlotRange->All
   ];
   
   (* Extract the contour lines from the contour plot *)
