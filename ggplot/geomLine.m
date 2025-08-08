@@ -25,7 +25,7 @@ geomLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}
 ];
 
 Options[geomLineRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "group" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yvals, pairs, sortedPairs, scaledPairs, connectedSegments},
+geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yvals, pairs, sortedPairs, scaledPairs, sortedData, uniformAesthetics, colors, alphas, thicknesses},
   (* statData is a single group - a list of associations *)
   
   xvals = extractMappedValues[statData, OptionValue["x"]];
@@ -33,28 +33,31 @@ geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yva
   pairs = Transpose[{xvals, yvals}];
   sortedPairs = SortBy[pairs, First];
   scaledPairs = Map[{OptionValue["xScaleFunc"][#[[1]]], OptionValue["yScaleFunc"][#[[2]]]} &, sortedPairs];
-        
-  (* Create line segments where each segment takes color from emanating point *)
-  connectedSegments = {};
-  Do[
-    If[i < Length[scaledPairs],
-      Module[{point1, color1, alpha1, thickness1},
-        point1 = statData[[Ordering[xvals][[i]]]]; (* Get the point data for aesthetics *)
-        color1 = point1["color_aes"];
-        alpha1 = point1["alpha_aes"]; 
-        thickness1 = point1["thickness_aes"];
-        AppendTo[connectedSegments, {
-          color1,
-          alpha1, 
-          thickness1,
-          Line[{scaledPairs[[i]], scaledPairs[[i + 1]]}]
-        }]
-      ]
-    ],
-    {i, Length[scaledPairs]}
+  
+  (* Sort data to match sorted pairs *)
+  sortedData = statData[[Ordering[xvals]]];
+  
+  (* Extract aesthetics in sorted order *)
+  colors = sortedData[[All, "color_aes"]];
+  alphas = sortedData[[All, "alpha_aes"]];
+  thicknesses = sortedData[[All, "thickness_aes"]];
+  
+  (* Check if aesthetics are uniform across all points *)
+  uniformAesthetics = Length[DeleteDuplicates[colors]] == 1 && 
+                      Length[DeleteDuplicates[alphas]] == 1 && 
+                      Length[DeleteDuplicates[thicknesses]] == 1;
+  
+  If[uniformAesthetics,
+    (* Uniform aesthetics: use single connected line *)
+    output = {First[colors], First[alphas], First[thicknesses], Line[scaledPairs]},
+    
+    (* Variable aesthetics: use VertexColors for smooth transitions *)
+    Module[{vertexColors},
+      vertexColors = MapThread[Directive[#1, #2, #3] &, {colors, alphas, thicknesses}];
+      output = Line[scaledPairs, VertexColors -> vertexColors]
+    ]
   ];
   
-  output = connectedSegments;
   output
 
 ];
