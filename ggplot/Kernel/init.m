@@ -12,6 +12,7 @@ Get["ggplot`aesColor`"];
 Get["ggplot`aesFill`"];
 Get["ggplot`aesSize`"];
 Get["ggplot`aesAlpha`"];
+Get["ggplot`aesLineAlpha`"];
 Get["ggplot`aesShape`"];
 Get["ggplot`aesThickness`"];
 Get["ggplot`aesGroup`"];

@@ -95,16 +95,36 @@ statSmooth[opts : OptionsPattern[]] := Module[{
           
           (* Create data points for the smoothed line *)
           groupKey -> Map[Function[dataPoint,
-            Association[
-              OptionValue["x"] -> dataPoint[[1]], (* x_smooth *)
-              OptionValue["y"] -> dataPoint[[2]], (* y_predicted *)
-              "ymin" -> dataPoint[[3]], (* ymin_ci *)
-              "ymax" -> dataPoint[[4]], (* ymax_ci *) 
-              (* Preserve aesthetics from the group *)
-              "color_aes" -> Lookup[First[groupData], "color_aes", Black],
-              "alpha_aes" -> Lookup[First[groupData], "alpha_aes", Opacity[1]],
-              "thickness_aes" -> Lookup[First[groupData], "thickness_aes", Automatic],
-							"fill_aes" -> Lookup[First[groupData], "fill_aes", Lookup[First[groupData], "color_aes", Black]]
+            Module[{baseData, aestheticKeys, aestheticData},
+              (* Base data with coordinates *)
+              baseData = Association[
+                OptionValue["x"] -> dataPoint[[1]], (* x_smooth *)
+                OptionValue["y"] -> dataPoint[[2]], (* y_predicted *)
+                "ymin" -> dataPoint[[3]], (* ymin_ci *)
+                "ymax" -> dataPoint[[4]] (* ymax_ci *)
+              ];
+              
+              (* Extract all aesthetic keys from the group *)
+              aestheticKeys = Select[Keys[First[groupData]], StringEndsQ[#, "_aes"] &];
+              
+              (* Create aesthetic data with appropriate defaults *)
+              aestheticData = Association[Table[
+                key -> Switch[key,
+                  "color_aes", Lookup[First[groupData], key, Black],
+                  "alpha_aes", Lookup[First[groupData], key, Opacity[1]],
+                  "thickness_aes", Lookup[First[groupData], key, Automatic],
+                  "fill_aes", Lookup[First[groupData], key, Lookup[First[groupData], "color_aes", Black]],
+                  "lineAlpha_aes", Lookup[First[groupData], key, Opacity[1]],
+                  "size_aes", Lookup[First[groupData], key, 1],
+                  "shape_aes", Lookup[First[groupData], key, "\[FilledCircle]"],
+                  "group_aes", Lookup[First[groupData], key, Null],
+                  _, Lookup[First[groupData], key, Missing["NotAvailable"]]
+                ],
+                {key, aestheticKeys}
+              ]];
+              
+              (* Merge base data with aesthetics *)
+              Join[baseData, aestheticData]
             ]
           ], confidenceData]
         ]

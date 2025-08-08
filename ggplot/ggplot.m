@@ -162,6 +162,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   processedData = reconcileAesthetics[processedData, allMappings["fill"], "fill"];
   processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
   processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
+  processedData = reconcileAesthetics[processedData, allMappings["lineAlpha"], "lineAlpha"];
   processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
   processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
   processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
@@ -261,6 +262,7 @@ collectGlobalAestheticMappings[options_] := Module[{globalMappings},
     "fill" -> Lookup[options, "fill", Null],
     "size" -> Lookup[options, "size", Null], 
     "alpha" -> Lookup[options, "alpha", Null],
+    "lineAlpha" -> Lookup[options, "lineAlpha", Null],
     "shape" -> Lookup[options, "shape", Null],
     "thickness" -> Lookup[options, "thickness", Null],
     "group" -> Lookup[options, "group", Null]

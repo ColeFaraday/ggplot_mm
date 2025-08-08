@@ -24,8 +24,8 @@ geomLine[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}
   |>
 ];
 
-Options[geomLineRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "group" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yvals, pairs, sortedPairs, scaledPairs, sortedData, uniformAesthetics, colors, alphas, thicknesses},
+Options[geomLineRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "group" -> Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "dashing" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yvals, pairs, sortedPairs, scaledPairs, sortedData, uniformAesthetics, colors, lineAlphas, thicknesses},
   (* statData is a single group - a list of associations *)
   
   xvals = extractMappedValues[statData, OptionValue["x"]];
@@ -39,21 +39,21 @@ geomLineRender[statData_, opts : OptionsPattern[]] := Module[{output, xvals, yva
   
   (* Extract aesthetics in sorted order *)
   colors = sortedData[[All, "color_aes"]];
-  alphas = sortedData[[All, "alpha_aes"]];
+  lineAlphas = Lookup[#, "lineAlpha_aes", Opacity[1]] & /@ sortedData;
   thicknesses = sortedData[[All, "thickness_aes"]];
   
   (* Check if aesthetics are uniform across all points *)
   uniformAesthetics = Length[DeleteDuplicates[colors]] == 1 && 
-                      Length[DeleteDuplicates[alphas]] == 1 && 
+                      Length[DeleteDuplicates[lineAlphas]] == 1 && 
                       Length[DeleteDuplicates[thicknesses]] == 1;
   
   If[uniformAesthetics,
     (* Uniform aesthetics: use single connected line *)
-    output = {First[colors], First[alphas], First[thicknesses], Line[scaledPairs]},
+    output = {First[colors], First[lineAlphas], First[thicknesses], Line[scaledPairs]},
     
     (* Variable aesthetics: use VertexColors for smooth transitions *)
     Module[{vertexColors},
-      vertexColors = MapThread[Directive[#1, #2, #3] &, {colors, alphas, thicknesses}];
+      vertexColors = MapThread[Directive[#1, #2, #3] &, {colors, lineAlphas, thicknesses}];
       output = Line[scaledPairs, VertexColors -> vertexColors]
     ]
   ];
