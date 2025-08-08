@@ -15,6 +15,8 @@ ggplot::shapeCount          = "More than 7 discrete shapes are present, aborting
 ggplot::errorBarMissingBounds = "geomErrorBar requires all four bounds: xmin, xmax, ymin, ymax";
 ggplot::errorBandMissingBounds = "geomBand requires x, ymin, and ymax";
 ggplot::labelNotGiven       = "geomText requires a label mapping";
+ggplot::keyNotFound         = "Aesthetic `1` refers to key '`2`' which does not exist in the data";
+ggplot::aestheticFormatError = "Aesthetic `1` has invalid format for value: `2`";
 ggplot::facetNotImplemented = "Faceting is not yet fully implemented";
 
 validDatasetQ[dataset_] := MatchQ[dataset, {_?AssociationQ..}];
@@ -157,11 +159,13 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   (* Apply aesthetic reconciliation globally *)
   processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
+  processedData = reconcileAesthetics[processedData, allMappings["fill"], "fill"];
   processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
   processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
   processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
   processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
   processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
+
 
   (* 1. Apply faceting to get panel specifications *)
   facetResult = If[facetSpec === facetIdentity[], 
@@ -254,6 +258,7 @@ collectGlobalAestheticMappings[options_] := Module[{globalMappings},
   (* Get only global aesthetic mappings from ggplot options *)
   globalMappings = <|
     "color" -> Lookup[options, "color", Null],
+    "fill" -> Lookup[options, "fill", Null],
     "size" -> Lookup[options, "size", Null], 
     "alpha" -> Lookup[options, "alpha", Null],
     "shape" -> Lookup[options, "shape", Null],

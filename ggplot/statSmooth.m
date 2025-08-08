@@ -9,6 +9,7 @@ Options[statSmooth] = {
   "y" -> Null,
   "color" -> Null,
   "alpha" -> Null,
+	"fill"->Null,
   "thickness" -> Null,
   "group" -> Null,
   "method" -> "lm",
@@ -102,7 +103,8 @@ statSmooth[opts : OptionsPattern[]] := Module[{
               (* Preserve aesthetics from the group *)
               "color_aes" -> Lookup[First[groupData], "color_aes", Black],
               "alpha_aes" -> Lookup[First[groupData], "alpha_aes", Opacity[1]],
-              "thickness_aes" -> Lookup[First[groupData], "thickness_aes", Automatic]
+              "thickness_aes" -> Lookup[First[groupData], "thickness_aes", Automatic],
+							"fill_aes" -> Lookup[First[groupData], "fill_aes", Lookup[First[groupData], "color_aes", Black]]
             ]
           ], confidenceData]
         ]

@@ -76,6 +76,8 @@ minorGridLineStyle2::usage  = "TBD";
 
 extractMappedValues::usage = "TBD";
 
+reconcileAesthetics::usage = "TBD";
+
 
 Options[gridLines2] = Options[ticks2];
 

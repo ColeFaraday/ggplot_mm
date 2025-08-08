@@ -9,6 +9,7 @@ Get["ggplot`gridLines`"];
 
 Get["ggplot`aes`"];
 Get["ggplot`aesColor`"];
+Get["ggplot`aesFill`"];
 Get["ggplot`aesSize`"];
 Get["ggplot`aesAlpha`"];
 Get["ggplot`aesShape`"];

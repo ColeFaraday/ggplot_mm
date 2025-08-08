@@ -61,6 +61,7 @@ facetIdentity[] := <|
 
 (* Shared panel processing function - used by ALL facet types *)
 processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{processedLayers},
+
   
   processedLayers = Map[
     Function[layer,
@@ -75,6 +76,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
         (* STEP 1: Resolve layer-specific aesthetics BEFORE stat processing *)
         layerAesthetics = extractLayerAesthetics[Association@layerOpts];
         resolvedData = resolveLayerAesthetics[panelData, layerAesthetics, options];
+
         
         (* STEP 2: Run stat function with resolved data *)
         statParams = Normal@Association[
@@ -87,7 +89,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
         (* Run stat → geom pipeline *)
         statResult = mergedLayer["stat"][Sequence @@ statParams];
         (* TODO: Sow[statResult, "legendData"] for legend generation *)
-        
+
         geomResult = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
         
         geomResult

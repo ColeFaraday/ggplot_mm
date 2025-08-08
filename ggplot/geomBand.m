@@ -23,8 +23,8 @@ geomBand[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}
   |>
 ];
 
-Options[geomBandRender] = {"data" -> {}, "x" -> Null, "ymin" -> Null, "ymax" -> Null, "color" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomBandRender[statData_, opts : OptionsPattern[]] := Module[{output, xVals, yMinVals, yMaxVals, sortedIndices, scaledXVals, scaledYMinVals, scaledYMaxVals, upperPath, lowerPath, polygonPath, colorDir, alphaDir},
+Options[geomBandRender] = {"data" -> {}, "x" -> "x", "ymin" -> "ymin", "ymax" -> "ymax", "color" -> Null, "fill" -> Null, "alpha" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomBandRender[statData_, opts : OptionsPattern[]] := Module[{output, xVals, yMinVals, yMaxVals, sortedIndices, scaledXVals, scaledYMinVals, scaledYMaxVals, upperPath, lowerPath, polygonPath, colorDir, alphaDir, fillDir},
   (* Ensure all required parameters have been given *)
   If[OptionValue["x"] === Null || OptionValue["ymin"] === Null || OptionValue["ymax"] === Null, 
     Message[ggplot::errorBandMissingBounds]; Throw[Null]
@@ -44,15 +44,19 @@ geomBandRender[statData_, opts : OptionsPattern[]] := Module[{output, xVals, yMi
   scaledYMaxVals = Map[OptionValue["yScaleFunc"], yMaxVals[[sortedIndices]]];
   
   (* Get aesthetics from first point in group *)
-  colorDir = First[statData]["color_aes"];
-  alphaDir = First[statData]["alpha_aes"];
+  colorDir = Lookup[First[statData], "color_aes", Black];
+  alphaDir = Lookup[First[statData], "alpha_aes", Opacity[1]];
+  
+  (* Handle fill aesthetic - inherit from color if not specified *)
+  fillDir = Lookup[First[statData], "fill_aes", colorDir];
+  Print[First[statData]];
   
   (* Create polygon paths *)
   upperPath = Transpose[{scaledXVals, scaledYMaxVals}];
   lowerPath = Reverse[Transpose[{scaledXVals, scaledYMinVals}]];
   polygonPath = Join[upperPath, lowerPath];
 
-  output = {colorDir, alphaDir, Polygon[polygonPath]};
+  output = {fillDir, alphaDir, Polygon[polygonPath]};
 
   output
 ];
