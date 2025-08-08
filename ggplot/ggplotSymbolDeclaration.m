@@ -40,6 +40,7 @@ geomBandRender::usage    = "TBD";
 geomDensity2DFilled::usage    = "TBD";
 geomDensity2DFilledRender::usage    = "TBD";
 geomConvexHull::usage    = "TBD";
+geomConvexHullRender::usage    = "TBD";
 geomText::usage  = "TBD";
 geomTextRender::usage  = "TBD";
 

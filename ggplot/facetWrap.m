@@ -132,6 +132,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
 extractLayerAesthetics[layerOpts_] := Module[{layerAesthetics},
   layerAesthetics = <|
     "color" -> Lookup[layerOpts, "color", Null],
+    "fill" -> Lookup[layerOpts, "fill", Null],
     "size" -> Lookup[layerOpts, "size", Null], 
     "alpha" -> Lookup[layerOpts, "alpha", Null],
     "shape" -> Lookup[layerOpts, "shape", Null],
@@ -149,6 +150,10 @@ resolveLayerAesthetics[panelData_, layerAesthetics_, globalOptions_] := Module[{
   (* Apply layer-specific aesthetics that override globals *)
   If[layerAesthetics["color"] =!= Null,
     processedData = reconcileAesthetics[processedData, layerAesthetics["color"], "color"]
+  ];
+  
+  If[layerAesthetics["fill"] =!= Null,
+    processedData = reconcileAesthetics[processedData, layerAesthetics["fill"], "fill"]
   ];
   
   If[layerAesthetics["size"] =!= Null,

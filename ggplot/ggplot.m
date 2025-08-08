@@ -143,7 +143,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
      geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
      geomHistogram[opts___] | geomBar[opts___] | geomBoxes[opts___] | 
-     geomBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
+     geomBand[opts___] | geomDensity2DFilled[opts___] | geomConvexHull[opts___] | geomText[opts___]), 
     {0, Infinity}
   ];
 
