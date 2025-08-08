@@ -26,7 +26,7 @@ Get["ggplot`geomVLine`"];
 Get["ggplot`geomHistogram`"];
 Get["ggplot`geomErrorBar`"];
 Get["ggplot`geomErrorBoxes`"];
-Get["ggplot`geomErrorBand`"];
+Get["ggplot`geomBand`"];
 Get["ggplot`geomDensity2DFilled`"];
 Get["ggplot`geomConvexHull`"];
 Get["ggplot`geomText`"];

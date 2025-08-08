@@ -13,7 +13,7 @@ ggplot::yInterceptNotGiven  = "No yIntercept value was given for geomHLine";
 ggplot::shapeContinuous     = "A continuous variable can not be mapped to a shape";
 ggplot::shapeCount          = "More than 7 discrete shapes are present, aborting... (this should be fixed)";
 ggplot::errorBarMissingBounds = "geomErrorBar requires all four bounds: xmin, xmax, ymin, ymax";
-ggplot::errorBandMissingBounds = "geomErrorBand requires x, ymin, and ymax";
+ggplot::errorBandMissingBounds = "geomBand requires x, ymin, and ymax";
 ggplot::labelNotGiven       = "geomText requires a label mapping";
 ggplot::facetNotImplemented = "Faceting is not yet fully implemented";
 
@@ -102,7 +102,7 @@ createCombinedLegend[data_] := Module[{
 ];
 
 Attributes[argPatternQ] = {HoldAllComplete};
-argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | geomConvexHull[___] | geomText[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
+argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomBand[___] | geomDensity2DFilled[___] | geomConvexHull[___] | geomText[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
 
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
@@ -141,7 +141,7 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
      geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
      geomHistogram[opts___] | geomErrorBar[opts___] | geomErrorBoxes[opts___] | 
-     geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
+     geomBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
     {0, Infinity}
   ];
 
