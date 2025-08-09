@@ -42,6 +42,205 @@ GetScaledCoord["OuterMiddleRight", offset_ : defaultOffset] := {{1 + offset[[1]]
 GetScaledCoord["OuterTopMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 1 + offset[[2]]}, {0.5, 0}};
 GetScaledCoord["OuterBottomMiddle", offset_ : defaultOffset] := {{0.5 + offset[[1]], 0 - offset[[2]]}, {0.5, 1}};
 
+(* Auto-detect scale type from data and create appropriate scale *)
+ClearAll[autoDetectScale];
+autoDetectScale[aesthetic_, mapping_, data_List] := Module[{
+  values, scaleType, scale
+},
+  values = extractValues[data, mapping];
+  
+  (* Auto-detect scale type based on data *)
+  scaleType = Which[
+    (* Check for dates first *)
+    AllTrue[values, DateObjectQ] || 
+    (AllTrue[values, NumericQ] && (Max[values] - Min[values]) > 365*24*3600),
+    "date",
+    
+    (* Check for log scale candidates *)
+    AllTrue[values, NumericQ] && Min[values] > 0 && (Max[values]/Min[values]) > 100,
+    "log",
+    
+    (* Check for continuous numeric *)
+    AllTrue[values, NumericQ],
+    "continuous", 
+    
+    (* Everything else is discrete *)
+    True,
+    "discrete"
+  ];
+  
+  (* Create appropriate scale *)
+  scale = Switch[scaleType,
+    "continuous", scaleContinuous["aesthetic" -> aesthetic],
+    "discrete", scaleDiscrete["aesthetic" -> aesthetic],
+    "log", scaleLog["aesthetic" -> aesthetic],  
+    "date", scaleDate["aesthetic" -> aesthetic]
+  ];
+  
+  scale
+];
+
+(* Collect all scale specifications from ggplot arguments *)
+ClearAll[collectScaleSpecs];
+collectScaleSpecs[heldArgs_Hold] := Module[{scaleSpecs},
+  (* Extract scale constructor calls from arguments *)
+  scaleSpecs = Cases[heldArgs,
+    (scaleContinuous[opts___] | scaleDiscrete[opts___] | scaleLog[opts___] | scaleDate[opts___] |
+     scaleXContinuous[opts___] | scaleYContinuous[opts___] | scaleXDiscrete[opts___] | scaleYDiscrete[opts___] |
+     scaleXLog[opts___] | scaleYLog[opts___] | scaleXDate[opts___] | scaleYDate[opts___] |
+     scaleColorContinuous[opts___] | scaleColorDiscrete[opts___] | scaleColorManual[opts___] |
+     scaleFillContinuous[opts___] | scaleFillDiscrete[opts___] | scaleFillManual[opts___] |
+     scaleSizeContinuous[opts___] | scaleSizeDiscrete[opts___] | scaleSizeManual[opts___] |
+     scaleShapeDiscrete[opts___] | scaleShapeManual[opts___]),
+    {0, Infinity}
+  ];
+  
+  (* Convert to association by aesthetic *)
+  Association[Map[#["aesthetic"] -> # &, scaleSpecs]]
+];
+
+(* Create scales for all mapped aesthetics *)
+ClearAll[createAllScales];
+createAllScales[data_List, heldArgs_Hold, globalAesthetics_Association, layerAesthetics_List] := Module[{
+  allMappings, userScales, autoScales, finalScales
+},
+  (* Collect all aesthetic mappings *)
+  allMappings = Join[globalAesthetics, Flatten[layerAesthetics]];
+  allMappings = DeleteCases[allMappings, _ -> Null]; (* Remove null mappings *)
+  
+  (* Get user-specified scales *)
+  userScales = collectScaleSpecs[heldArgs];
+  
+  (* Auto-create scales for unmapped aesthetics *)
+  autoScales = Association[KeyValueMap[Function[{aesthetic, mapping},
+    If[!KeyExistsQ[userScales, aesthetic],
+      aesthetic -> autoDetectScale[aesthetic, mapping, data],
+      Nothing
+    ]
+  ], allMappings]];
+  
+  (* Combine user scales with auto scales *)
+  finalScales = Join[autoScales, userScales];
+  
+  (* Train all scales on data *)
+  Association[KeyValueMap[Function[{aesthetic, scale},
+    aesthetic -> trainScale[scale, data, allMappings[aesthetic]]
+  ], finalScales]]
+];
+
+(* ============================== *)
+(* AESTHETIC APPLICATION WITH SCALES *)
+(* ============================== *)
+
+(* Apply all aesthetic mappings using trained scales *)
+ClearAll[applyAestheticsWithScales];
+applyAestheticsWithScales[data_List, scales_Association, aestheticMappings_Association] := Module[{
+  processedData
+},
+  processedData = data;
+  
+  (* Apply each aesthetic using its trained scale *)
+  KeyValueMap[Function[{aesthetic, mapping},
+    If[KeyExistsQ[scales, aesthetic],
+      processedData = Map[Function[row,
+        Module[{value, scaledValue},
+          value = Which[
+            StringQ[mapping], row[mapping],
+            Head[mapping] === Function, mapping[row],
+            True, mapping (* constant *)
+          ];
+          
+          scaledValue = applyScale[scales[aesthetic], value];
+          Append[row, aesthetic <> "_aes" -> scaledValue]
+        ]
+      ], processedData]
+    ]
+  ], aestheticMappings];
+  
+  processedData
+];
+
+(* ============================== *)
+(* LEGEND GENERATION FROM SCALES  *)
+(* ============================== *)
+
+(* Generate legends from trained scales *)
+ClearAll[generateLegendsFromScales];
+generateLegendsFromScales[scales_Association] := Module[{
+  legendableScales, legends
+},
+  (* Only create legends for non-position aesthetics *)
+  legendableScales = KeySelect[scales, !MemberQ[{"x", "y"}, #] &];
+  
+  legends = KeyValueMap[Function[{aesthetic, scale},
+    createLegendFromScale[aesthetic, scale]
+  ], legendableScales];
+  
+  (* Filter out None values *)
+  Select[legends, # =!= None &]
+];
+
+(* Create legend from a trained scale *)
+ClearAll[createLegendFromScale];
+createLegendFromScale[aesthetic_, scale_Association] := Module[{
+  scaleType, domain, palette, breaks, labels, name
+},
+  scaleType = scale["type"];
+  domain = scale["domain"];
+  palette = scale["palette"];
+  breaks = scale["breaks"];
+  labels = scale["labels"];
+  name = If[scale["name"] === Automatic, ToString[scale["aesthetic"]], scale["name"]];
+  
+  Switch[{aesthetic, scaleType},
+    {"color" | "fill", "discrete"},
+    If[ListQ[palette] && ListQ[labels],
+      LineLegend[palette, labels, LegendLabel -> name],
+      None
+    ],
+    
+    {"color" | "fill", "continuous" | "log"},
+    BarLegend[{palette, domain}, LegendLabel -> name],
+    
+    {"shape", "discrete"},
+    If[ListQ[palette] && ListQ[labels],
+      PointLegend[palette, labels, LegendLabel -> name],
+      None
+    ],
+    
+    {"size", "discrete"},
+    If[ListQ[domain] && ListQ[scale["range"]],
+      PointLegend[
+        ConstantArray["\[FilledCircle]", Length[domain]], 
+        labels,
+        LegendMarkerSize -> scale["range"],
+        LegendLabel -> name
+      ],
+      None
+    ],
+    
+    {"size", "continuous"},
+    Module[{minSize, maxSize},
+      {minSize, maxSize} = scale["range"];
+      PointLegend[
+        {"\[FilledCircle]", "\[FilledCircle]", "\[FilledCircle]"},
+        {ToString[domain[[1]]], "Mid", ToString[domain[[2]]]},
+        LegendMarkerSize -> {minSize, Mean[{minSize, maxSize}], maxSize},
+        LegendLabel -> name
+      ]
+    ],
+    
+    {"alpha", "discrete"},
+    SwatchLegend[
+      Map[Opacity[#, Gray] &, scale["range"]],
+      labels,
+      LegendLabel -> name
+    ],
+    
+    _, None (* No legend for this combination *)
+  ]
+];
+
 (* Convert legend info to built-in legend functions *)
 convertLegendInfo[legendInfo_] := Module[{legendItems},
   If[Length[legendInfo] == 0, Return[{}]];
@@ -158,34 +357,18 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   (* Collect only global aesthetic mappings *)
   allMappings = collectGlobalAestheticMappings[options];
 
-  (* Apply aesthetic reconciliation globally *)
-  processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
-  processedData = reconcileAesthetics[processedData, allMappings["fill"], "fill"];
-  processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
-  processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
-  processedData = reconcileAesthetics[processedData, allMappings["lineAlpha"], "lineAlpha"];
-  processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
-  processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
-  processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
+  globalAesthetics = collectGlobalAestheticMappings[options]; (* Your existing function *)
+  layerAesthetics = Map[extractLayerAesthetics[Association @@ #] &, layers]; (* Your existing function *)
+
+  scales = createAllScales[dataset, heldArgs, globalAesthetics, layerAesthetics];
+
+  processedData = applyAestheticsWithScales[dataset, scales, globalAesthetics];
 
 
   (* 1. Apply faceting to get panel specifications *)
   facetResult = If[facetSpec === facetIdentity[], 
     <|"type" -> "identity", "panels" -> <|"single" -> processedData|>|>,
     facetSpec[processedData]  (* Facet function transforms the data *)
-  ];
-
-  (* 2. Compute global scales for consistency across panels *)
-  defaultXLabel = First@Cases[heldArgs, ("x" -> x_) :> ToString[x], {0, Infinity}];
-  defaultYLabel = Quiet[Check[First@Cases[heldArgs, ("y" -> y_) :> ToString[y], {0, Infinity}], ""]];
-  frameLabel = Lookup[options, FrameLabel, Automatic];
-  frameLabel = Which[
-    frameLabel === Automatic,
-    {defaultXLabel, defaultYLabel} /. str_?StringQ :> Style[str, Opacity[1], FontColor -> Black],
-    MatchQ[frameLabel, {{_?StringQ, _?StringQ}, {_?StringQ, _?StringQ}} | {_?StringQ, _?StringQ} | _?StringQ],
-    frameLabel /. str_?StringQ :> Style[str, Opacity[1], FontColor -> Black],
-    True,
-    frameLabel
   ];
 
   (* For faceted plots, don't add frame labels to individual panels *)
@@ -197,59 +380,24 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
     Append[DeleteCases[options, FrameLabel -> _], FrameLabel -> frameLabel]
   ];
 
-  xScaleType = reconcileXScales[heldArgs];
-  yScaleType = reconcileYScales[heldArgs];
-
-  xScaleFunc = If[xScaleType == "Discrete",
-    createDiscreteScaleFunc["x", heldArgs],
-    With[{f = ToExpression[xScaleType /. "Linear" | "Date" -> "Identity"]}, Function[f[#]]]
-  ];
-  yScaleFunc = If[yScaleType == "Discrete",
-    createDiscreteScaleFunc["y", heldArgs],
-    With[{f = ToExpression[yScaleType /. "Linear" | "Date" -> "Identity"]}, Function[f[#]]]
-  ];
-
-  If[xScaleType == "Discrete", xDiscreteLabels = createDiscreteScaleLabels["x", heldArgs]];
-  If[yScaleType == "Discrete", yDiscreteLabels = createDiscreteScaleLabels["y", heldArgs]];
-
-  (* Calculate consistent plot ranges from full dataset for faceting, unless user provided PlotRange *)
-  globalPlotRange = Lookup[options, PlotRange, 
-    calculateGlobalPlotRange[processedData, heldArgs, xScaleFunc, yScaleFunc]
-  ];
-
-  globalScales = <|
-    "xScaleFunc" -> xScaleFunc, 
-    "yScaleFunc" -> yScaleFunc,
-    "plotRange" -> globalPlotRange
-  |>;
-  
-
-  (* 3. Process each panel through stat→geom pipeline *)
-  {panelGraphics, allLegendData} = Reap[
-    If[facetResult["type"] === "identity",
-      (* Single panel case - process directly *)
-      KeyValueMap[
-        Function[{panelKey, panelData},
-          processPanelLayers[panelData, layers, globalScales, panelOptions]
-        ],
-        facetResult["panels"]
+(* Process panels with scale-aware layers *)
+  panelGraphics = If[facetResult["type"] === "identity",
+    {processPanelLayersWithScales[First[Values[facetResult["panels"]]], layers, scales, options]},
+    Map[
+      Function[panelKey,
+        processPanelLayersWithScales[facetResult["panels"][panelKey], layers, scales, options]
       ],
-      (* Faceted case - process panels in the correct order to match strip labels *)
-      Map[
-        Function[panelKey,
-          processPanelLayers[facetResult["panels"][panelKey], layers, globalScales, panelOptions]
-        ],
-        facetResult["panelOrder"]
-      ]
+      facetResult["panelOrder"]
     ]
   ];
 
-  (* 4. Generate legends - placeholder for now *)
-  legendInfo = {};
+
+  legends = generateLegendsFromScales[scales];
 
   (* 5. Layout panels + legends based on facet type *)
   (* Pass both the original computed frameLabel and the facetResult for layout decisions *)
-  graphic = layoutFacetedPlot[panelGraphics, legendInfo, facetResult, options, frameLabel];
+  frameLabel = calculateFrameLabel[heldArgs, options]; (* You'd need to implement this *)
+  graphic = layoutFacetedPlot[panelGraphics, legends, facetResult, options, frameLabel];
 
   graphic
 ]];
@@ -314,6 +462,82 @@ extractMappedValues[data_, mapping_] :=
     Head[mapping] === Function, mapping /@ data,
     True, Nothing
   ];
+
+(* Enhanced panel processing that passes scales to geoms *)
+ClearAll[processPanelLayersWithScales];
+processPanelLayersWithScales[panelData_, layers_, scales_, options_] := Module[{
+  processedLayers, xScale, yScale
+},
+  (* Extract position scales *)
+  xScale = Lookup[scales, "x", None];
+  yScale = Lookup[scales, "y", None];
+  
+  processedLayers = Map[
+    Function[layer,
+      Module[{layerHead, layerOpts, mergedLayer, layerAesthetics, resolvedData, 
+        statParams, geomParams, statResult, geomResult},
+        layerHead = Head[layer];
+        layerOpts = List @@ layer;
+        
+        mergedLayer = layerHead @@ Normal@Join[
+          Association@options, Association@layerOpts
+        ];
+        
+        (* Resolve layer-specific aesthetics using scales *)
+        layerAesthetics = extractLayerAesthetics[Association@layerOpts];
+        resolvedData = applyAestheticsWithScales[panelData, scales, layerAesthetics];
+        
+        (* Prepare parameters *)
+        statParams = Normal@Association[
+          Association@mergedLayer["statParams"], 
+          <|"data" -> resolvedData|>
+        ];
+        
+        geomParams = Join[mergedLayer["geomParams"], <|
+          "xScale" -> xScale,
+          "yScale" -> yScale,
+          "scales" -> scales
+        |>];
+        
+        (* Run stat → geom pipeline *)
+        statResult = mergedLayer["stat"][Sequence @@ statParams];
+        geomResult = Values[mergedLayer["geom"][#, Sequence @@ Normal[geomParams]] & /@ statResult];
+        
+        geomResult
+      ]
+    ],
+    layers
+  ];
+  
+  (* Calculate plot range from position scales *)
+  plotRange = {
+    If[xScale =!= None, xScale["domain"], All],
+    If[yScale =!= None, yScale["domain"], All]
+  };
+  
+  (* Return Graphics object *)
+  Graphics[Flatten[processedLayers],
+    Frame -> Lookup[options, Frame, True],
+    FrameLabel -> Lookup[options, FrameLabel, Automatic],
+    PlotRange -> plotRange,
+    AspectRatio -> Lookup[options, AspectRatio, 7/10],
+    ImageSize -> 150
+  ]
+];
+
+(* Helper function to calculate frame labels based on ggplot arguments *)
+ClearAll[calculateFrameLabel];
+calculateFrameLabel[heldArgs_, options_] := Module[{xLabel, yLabel},
+  (* Extract x and y labels from options or arguments *)
+  xLabel = Lookup[options, "xLabel", First@Cases[heldArgs, ("xLabel" -> lbl_) :> lbl, {0, Infinity}, 1]];
+  yLabel = Lookup[options, "yLabel", First@Cases[heldArgs, ("yLabel" -> lbl_) :> lbl, {0, Infinity}, 1]];
+
+  (* Default to automatic labels if not provided *)
+  xLabel = If[xLabel === $Failed, "x", xLabel];
+  yLabel = If[yLabel === $Failed, "y", yLabel];
+
+  {xLabel, yLabel}
+];
 
 End[];
 
