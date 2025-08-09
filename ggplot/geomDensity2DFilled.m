@@ -7,80 +7,62 @@ BeginPackage["ggplot`"];
 Begin["`Private`"];
 
 (* geomDensity2DFilled implementation *)
+ClearAll[geomDensity2DFilled];
+geomDensity2DFilled[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statDensity2D];
+  geomFunc = Lookup[Association[opts], "geom", geomDensity2DFilledRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
-Options[geomDensity2DFilled] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "alpha" -> Null, "levels" -> 10, "bandwidth" -> Automatic, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomDensity2DFilled[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, groupbyKeys, output},
+Options[geomDensity2DFilledRender] = {
+  "data" -> {}, 
+  "x" -> Null, 
+  "y" -> Null, 
+  "color" -> Null, 
+  "alpha" -> Null, 
+  "fill" -> Null,
+  "xScaleFunc" -> Function[Identity[#]], 
+  "yScaleFunc" -> Function[Identity[#]]
+};
+
+geomDensity2DFilledRender[statData_, opts : OptionsPattern[]] := Module[{output},
   (* Ensure X/Y has been given *)
-  If[OptionValue["x"] === Null || OptionValue["y"] === Null, Message[ggplot::xOrYNotGiven]; Throw[Null];];
+  If[OptionValue["x"] === Null || OptionValue["y"] === Null, 
+    Message[ggplot::xOrYNotGiven]; Throw[Null]
+  ];
 
-  newDataset = OptionValue["data"];
-
-  (* Switch dates to absolute times *)
-  newDataset = Replace[newDataset, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
-
-  (* For each key necessary, reconcile the aesthetics and append them to the dataset as a column name i.e. "color_aes" -> somecolor *)
-  newDataset = reconcileAesthetics[newDataset, OptionValue["color"], "color"];
-  newDataset = reconcileAesthetics[newDataset, OptionValue["alpha"], "alpha"];
-
-  (* Group the data based on their aesthetic keys and then apply correct aesthetics while making density primitives *)
-  groupbyKeys = Function[{#["color_aes"], #["alpha_aes"]}];
-  output = newDataset //
-            GroupBy[groupbyKeys] //
-            Values //
-            Map[{
-              #[[1, "color_aes"]],
-              #[[1, "alpha_aes"]],
-              (* Create density contours for the grouped data *)
-              Module[{xVals, yVals, xRange, yRange, kde, contourGraphics, primitives},
-                (* Extract x and y values *)
-                xVals = Map[Function[point,
-                  If[StringQ[OptionValue["x"]], point[OptionValue["x"]], OptionValue["x"][point]]
-                ], #];
-                yVals = Map[Function[point,
-                  If[StringQ[OptionValue["y"]], point[OptionValue["y"]], OptionValue["y"][point]]
-                ], #];
-                
-                (* Apply scaling functions *)
-                xVals = Map[OptionValue["xScaleFunc"], xVals];
-                yVals = Map[OptionValue["yScaleFunc"], yVals];
-                
-                (* Determine data ranges and expand them for natural density falloff *)
-                xRange = MinMax[xVals];
-                yRange = MinMax[yVals];
-                
-                (* Expand ranges by 20% on each side for natural density tails *)
-                xSpan = xRange[[2]] - xRange[[1]];
-                ySpan = yRange[[2]] - yRange[[1]];
-                xRangeExpanded = {xRange[[1]] - 0.2*xSpan, xRange[[2]] + 0.2*xSpan};
-                yRangeExpanded = {yRange[[1]] - 0.2*ySpan, yRange[[2]] + 0.2*ySpan};
-
-                
-                (* Create kernel density estimation *)
-                kde = SmoothKernelDistribution[Transpose[{xVals, yVals}], 
-                  If[OptionValue["bandwidth"] === Automatic, 
-                    Automatic, 
-                    OptionValue["bandwidth"]]];
-                
-                (* Generate filled contour plot and extract polygons *)
-                contourGraphics = ContourPlot[PDF[kde, {x, y}], 
-                  {x, xRangeExpanded[[1]], xRangeExpanded[[2]]}, 
-                  {y, yRangeExpanded[[1]], yRangeExpanded[[2]]},
-                  Contours -> OptionValue["levels"],
-                  ContourShading -> True,
-                  ContourLines -> False,
-                  PlotPoints -> 50,
-                  Frame -> False,
-                  Axes -> False
-                ];
-                
-                (* Extract polygon primitives from the contour plot *)
-                primitives = FullForm[contourGraphics][[1,1]];
-
-                
-                (* Return the polygons *)
-                Sequence @@ {primitives}
-              ]
-            } &];
+  (* statData is a single group - a list of associations from statDensity2D *)
+  (* Create density-filled rectangles for each density point *)
+  output = statData // Map[Function[row,
+    Module[{colorDir, fillDir, alphaDir, xpos, ypos, density, level},
+      colorDir = Lookup[row, "color_aes", Black];
+      fillDir = Lookup[row, "fill_aes", Lookup[row, "color_aes", Black]];
+      alphaDir = Lookup[row, "alpha_aes", Opacity[1]];
+      
+      xpos = OptionValue["xScaleFunc"][Lookup[row, OptionValue["x"]]];
+      ypos = OptionValue["yScaleFunc"][Lookup[row, OptionValue["y"]]];
+      density = Lookup[row, "density", 0];
+      level = Lookup[row, "level", 1];
+      
+      (* Create filled rectangle representing this density point *)
+      (* Use density for transparency and level for size *)
+      {EdgeForm[{colorDir, alphaDir}], 
+       fillDir, 
+       Opacity[Min[1, density/10]], (* Scale density for visibility *)
+       Rectangle[{xpos - 0.05 * level, ypos - 0.05 * level}, 
+                {xpos + 0.05 * level, ypos + 0.05 * level}]
+      }
+    ]
+  ]];
 
   output
 ];

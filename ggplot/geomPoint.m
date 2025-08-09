@@ -9,12 +9,20 @@ Begin["`Private`"];
 
 (* geomPoint implementation *)
 ClearAll[geomPoint];
-geomPoint[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
-  "stat" -> statIdentity,
-  "geom" -> geomPointRender,
-  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
-  "geomParams" -> FilterRules[{opts}, Options[geomPointRender]]
-|>;
+geomPoint[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statIdentity];
+  geomFunc = Lookup[Association[opts], "geom", geomPointRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
 Options[geomPointRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "size" -> Null, "alpha" -> Null, "shape" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
 geomPointRender[statData_, opts : OptionsPattern[]] := Module[{newDataset, colorFunc, sizeFunc, alphaFunc, shapeFunc, output},

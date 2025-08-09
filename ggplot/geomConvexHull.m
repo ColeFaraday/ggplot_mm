@@ -1,47 +1,99 @@
 (* Mathematica Source File *)
-(* geomConvexHull: draws the convex hull of a set of points using geomPath *)
+(* geomConvexHull: draws the convex hull of a set of points *)
+
 BeginPackage["ggplot`"];
+
 Begin["`Private`"];
-Options[geomConvexHull] = {"data" -> {}, "x" -> Null, "y" -> Null, "group"->Null, "color" -> Null, "thickness" -> Null, "alpha" -> Null, "stat" -> statConvexHull, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomConvexHull[opts : OptionsPattern[]] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0 := Module[{newDataset, stat, hullPoints, color, thickness, alpha, xScale, yScale, groupbyKeys},
 
-	Print["Testing!"];
-	Print[OptionValue["color"]];
+(* geomConvexHull implementation *)
+ClearAll[geomConvexHull];
+geomConvexHull[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
+  statFunc, geomFunc
+},
+  (* Allow overriding default stat and geom *)
+  statFunc = Lookup[Association[opts], "stat", statConvexHull];
+  geomFunc = Lookup[Association[opts], "geom", geomConvexHullRender];
+  
+  <|
+    "stat" -> statFunc,
+    "geom" -> geomFunc,
+    "statParams" -> FilterRules[{opts}, Options[statFunc]],
+    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
+  |>
+];
 
-  If[OptionValue["x"] === Null || OptionValue["y"] === Null, Message[ggplot::xOrYNotGiven]; Throw[Null];];
-  newDataset = OptionValue["data"];
-  newDataset = Replace[newDataset, d_?DateObjectQ :> AbsoluteTime[d], Infinity];
-  newDataset = reconcileAesthetics[newDataset, OptionValue["color"], "color"];
-  newDataset = reconcileAesthetics[newDataset, OptionValue["alpha"], "alpha"];
-  newDataset = reconcileAesthetics[newDataset, OptionValue["thickness"], "thickness"];
-
-  groupbyKeys = If[OptionValue["group"] =!= Null,
-    Function[{# ["group_aes"], # ["color_aes"], # ["alpha_aes"], # ["thickness_aes"]}],
-    Function[{# ["color_aes"], # ["alpha_aes"], # ["thickness_aes"]}]
+(* geomConvexHullRender - dedicated renderer for convex hulls *)
+Options[geomConvexHullRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "fill" -> Null, "thickness" -> Null, "alpha" -> Null, "lineAlpha" -> Null, "filled" -> True, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
+geomConvexHullRender[statData_, opts : OptionsPattern[]] := Module[{output, filled},
+  filled = OptionValue["filled"];
+  
+  (* Ensure X/Y has been given *)
+  If[OptionValue["x"] === Null || OptionValue["y"] === Null, 
+    Message[ggplot::xOrYNotGiven]; Throw[Null]
   ];
 
-	grouped = GroupBy[newDataset, groupbyKeys];
-
-	Print[grouped];
-
-  stat = OptionValue["stat"];
-  hullPoints = stat[<|"x" -> #[[OptionValue["x"]]], "y" -> #[[OptionValue["y"]]]|>]&/@grouped;
-  color = OptionValue["color"];
-  thickness = OptionValue["thickness"];
-  alpha = OptionValue["alpha"];
-  xScale = OptionValue["xScaleFunc"];
-  yScale = OptionValue["yScaleFunc"];
-
-	Print["new dataset: "];
-	Print[newDataset];
-
-	Print["hull points: "];
-	Print[hullPoints];
-
-  geomPath[
-    "data" -> Map[<|"x" -> xScale@#[[1]], "y" -> yScale@#[[2]]|> &, hullPoints],
-    "x" -> "x", "y" -> "y", "color" -> color, "thickness" -> thickness, "alpha" -> alpha
-  ]
-]
+  (* statData contains the convex hull points from statConvexHull *)
+  If[Length[statData] > 0,
+    If[filled,
+      (* Filled convex hull *)
+      Module[{xvals, yvals, scaledPairs, firstRow, colorDir, alphaDir, fillDir, lineAlphaDir, thicknessDir, closedPairs},
+        (* Extract hull points and scale them *)
+        xvals = extractMappedValues[statData, OptionValue["x"]];
+        yvals = extractMappedValues[statData, OptionValue["y"]];
+        scaledPairs = MapThread[
+          {OptionValue["xScaleFunc"][#1], OptionValue["yScaleFunc"][#2]} &, 
+          {xvals, yvals}
+        ];
+        
+        (* Get aesthetics from first point *)
+        firstRow = First[statData];
+        colorDir = Lookup[firstRow, "color_aes", Black];
+        alphaDir = Lookup[firstRow, "alpha_aes", Opacity[1]];
+        lineAlphaDir = Lookup[firstRow, "lineAlpha_aes", Opacity[1]];
+        thicknessDir = Lookup[firstRow, "thickness_aes", Automatic];
+        
+        (* Handle fill aesthetic - inherit from color if not specified *)
+        fillDir = Lookup[firstRow, "fill_aes", colorDir];
+        
+        (* Polygon automatically closes, so no need to append first point *)
+        closedPairs = scaledPairs;
+        
+        (* Create filled polygon with outline *)
+        output = {
+          EdgeForm[{colorDir, lineAlphaDir, thicknessDir}], (* Polygon outline with color, lineAlpha, and thickness *)
+          fillDir, alphaDir, (* Fill color and fill alpha *)
+          Polygon[closedPairs]
+        };
+      ],
+      (* Outline-only convex hull *)
+      Module[{xvals, yvals, scaledPairs, firstRow, colorDir, lineAlphaDir, thicknessDir, closedPairs},
+        (* Extract hull points and scale them *)
+        xvals = extractMappedValues[statData, OptionValue["x"]];
+        yvals = extractMappedValues[statData, OptionValue["y"]];
+        scaledPairs = MapThread[
+          {OptionValue["xScaleFunc"][#1], OptionValue["yScaleFunc"][#2]} &, 
+          {xvals, yvals}
+        ];
+        
+        (* Get aesthetics from first point *)
+        firstRow = First[statData];
+        colorDir = Lookup[firstRow, "color_aes", Black];
+        lineAlphaDir = Lookup[firstRow, "lineAlpha_aes", Opacity[1]];
+        thicknessDir = Lookup[firstRow, "thickness_aes", Automatic];
+        
+        (* Close the hull by adding the first point at the end for Line *)
+        closedPairs = If[Length[scaledPairs] > 2,
+          Append[scaledPairs, First[scaledPairs]],
+          scaledPairs
+        ];
+        
+        output = {{colorDir, lineAlphaDir, thicknessDir, Line[closedPairs]}};
+      ]
+    ],
+    output = {}
+  ];
+  
+  output
+];
 End[];
 EndPackage[];

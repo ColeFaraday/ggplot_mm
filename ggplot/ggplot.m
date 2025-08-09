@@ -12,9 +12,11 @@ ggplot::xInterceptNotGiven  = "No xIntercept value was given for geomHLine";
 ggplot::yInterceptNotGiven  = "No yIntercept value was given for geomHLine";
 ggplot::shapeContinuous     = "A continuous variable can not be mapped to a shape";
 ggplot::shapeCount          = "More than 7 discrete shapes are present, aborting... (this should be fixed)";
-ggplot::errorBarMissingBounds = "geomErrorBar requires all four bounds: xmin, xmax, ymin, ymax";
-ggplot::errorBandMissingBounds = "geomErrorBand requires x, ymin, and ymax";
+ggplot::errorBarMissingBounds = "geomBar requires all four bounds: xmin, xmax, ymin, ymax";
+ggplot::errorBandMissingBounds = "geomBand requires x, ymin, and ymax";
 ggplot::labelNotGiven       = "geomText requires a label mapping";
+ggplot::keyNotFound         = "Aesthetic `1` refers to key '`2`' which does not exist in the data";
+ggplot::aestheticFormatError = "Aesthetic `1` has invalid format for value: `2`";
 ggplot::facetNotImplemented = "Faceting is not yet fully implemented";
 
 validDatasetQ[dataset_] := MatchQ[dataset, {_?AssociationQ..}];
@@ -102,7 +104,7 @@ createCombinedLegend[data_] := Module[{
 ];
 
 Attributes[argPatternQ] = {HoldAllComplete};
-argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomErrorBar[___] | geomErrorBoxes[___] | geomErrorBand[___] | geomDensity2DFilled[___] | geomText[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
+argPatternQ[expr___] := MatchQ[Hold[expr], Hold[(_Rule | geomPoint[___] | geomLine[___] | geomPath[___] | geomSmooth[___] | geomVLine[___] | geomHLine[___] | geomParityLine[___] | geomHistogram[___] | geomCol[___] | geomBar[___] | geomBoxes[___] | geomBand[___] | geomDensity2DFilled[___] | geomDensity2D[___] | geomConvexHull[___] | geomText[___] | scaleXDate2[___] | scaleXLinear2[___] | scaleXLog2[___] | scaleYDate2[___] | scaleYLinear2[___] | scaleYLog2[___] | facetWrap[___]) ...]];
 
 (* Main ggplot method and entry point *)
 Options[ggplot] = DeleteDuplicates[Join[{
@@ -140,10 +142,11 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
   layers = Cases[heldArgs, 
     (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
      geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
-     geomHistogram[opts___] | geomErrorBar[opts___] | geomErrorBoxes[opts___] | 
-     geomErrorBand[opts___] | geomDensity2DFilled[opts___] | geomText[opts___]), 
+     geomHistogram[opts___] | geomBar[opts___] | geomBoxes[opts___] | 
+     geomBand[opts___] | geomDensity2DFilled[opts___] | geomConvexHull[opts___] | geomText[opts___] | geomDensity2D[opts___]), 
     {0, Infinity}
   ];
+
 
   (* Extract facet specification *)
   facetSpec = Cases[heldArgs, facetWrap[variable_, opts___] :> facetWrap[variable, opts], {0, Infinity}];
@@ -157,11 +160,14 @@ ggplot[args___?argPatternQ] /; Count[Hold[args], ("data" -> _), {0, Infinity}] >
 
   (* Apply aesthetic reconciliation globally *)
   processedData = reconcileAesthetics[processedData, allMappings["color"], "color"];
+  processedData = reconcileAesthetics[processedData, allMappings["fill"], "fill"];
   processedData = reconcileAesthetics[processedData, allMappings["size"], "size"];
   processedData = reconcileAesthetics[processedData, allMappings["alpha"], "alpha"];
+  processedData = reconcileAesthetics[processedData, allMappings["lineAlpha"], "lineAlpha"];
   processedData = reconcileAesthetics[processedData, allMappings["shape"], "shape"];
   processedData = reconcileAesthetics[processedData, allMappings["thickness"], "thickness"];
   processedData = reconcileAesthetics[processedData, allMappings["group"], "group"];
+
 
   (* 1. Apply faceting to get panel specifications *)
   facetResult = If[facetSpec === facetIdentity[], 
@@ -254,8 +260,10 @@ collectGlobalAestheticMappings[options_] := Module[{globalMappings},
   (* Get only global aesthetic mappings from ggplot options *)
   globalMappings = <|
     "color" -> Lookup[options, "color", Null],
+    "fill" -> Lookup[options, "fill", Null],
     "size" -> Lookup[options, "size", Null], 
     "alpha" -> Lookup[options, "alpha", Null],
+    "lineAlpha" -> Lookup[options, "lineAlpha", Null],
     "shape" -> Lookup[options, "shape", Null],
     "thickness" -> Lookup[options, "thickness", Null],
     "group" -> Lookup[options, "group", Null]

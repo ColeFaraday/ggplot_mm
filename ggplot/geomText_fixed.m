@@ -9,20 +9,12 @@ Begin["`Private`"];
 
 (* geomText implementation *)
 ClearAll[geomText];
-geomText[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := Module[{
-  statFunc, geomFunc
-},
-  (* Allow overriding default stat and geom *)
-  statFunc = Lookup[Association[opts], "stat", statIdentity];
-  geomFunc = Lookup[Association[opts], "geom", geomTextRender];
-  
-  <|
-    "stat" -> statFunc,
-    "geom" -> geomFunc,
-    "statParams" -> FilterRules[{opts}, Options[statFunc]],
-    "geomParams" -> FilterRules[{opts}, Options[geomFunc]]
-  |>
-];
+geomText[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity}] > 0] := <|
+  "stat" -> statIdentity,
+  "geom" -> geomTextRender,
+  "statParams" -> FilterRules[{opts}, Options[statIdentity]],
+  "geomParams" -> FilterRules[{opts}, Options[geomTextRender]]
+|>;
 
 Options[geomTextRender] = {
   "data" -> {}, 

@@ -61,6 +61,7 @@ facetIdentity[] := <|
 
 (* Shared panel processing function - used by ALL facet types *)
 processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{processedLayers},
+
   
   processedLayers = Map[
     Function[layer,
@@ -75,6 +76,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
         (* STEP 1: Resolve layer-specific aesthetics BEFORE stat processing *)
         layerAesthetics = extractLayerAesthetics[Association@layerOpts];
         resolvedData = resolveLayerAesthetics[panelData, layerAesthetics, options];
+
         
         (* STEP 2: Run stat function with resolved data *)
         statParams = Normal@Association[
@@ -87,7 +89,7 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
         (* Run stat → geom pipeline *)
         statResult = mergedLayer["stat"][Sequence @@ statParams];
         (* TODO: Sow[statResult, "legendData"] for legend generation *)
-        
+
         geomResult = Values[mergedLayer["geom"][#, Sequence @@ geomParams] &/@ statResult];
         
         geomResult
@@ -130,10 +132,12 @@ processPanelLayers[panelData_, layers_, globalScales_, options_] := Module[{proc
 extractLayerAesthetics[layerOpts_] := Module[{layerAesthetics},
   layerAesthetics = <|
     "color" -> Lookup[layerOpts, "color", Null],
+    "fill" -> Lookup[layerOpts, "fill", Null],
     "size" -> Lookup[layerOpts, "size", Null], 
     "alpha" -> Lookup[layerOpts, "alpha", Null],
     "shape" -> Lookup[layerOpts, "shape", Null],
     "thickness" -> Lookup[layerOpts, "thickness", Null],
+    "lineAlpha" -> Lookup[layerOpts, "lineAlpha", Null],
     "group" -> Lookup[layerOpts, "group", Null]
   |>;
   layerAesthetics
@@ -146,6 +150,10 @@ resolveLayerAesthetics[panelData_, layerAesthetics_, globalOptions_] := Module[{
   (* Apply layer-specific aesthetics that override globals *)
   If[layerAesthetics["color"] =!= Null,
     processedData = reconcileAesthetics[processedData, layerAesthetics["color"], "color"]
+  ];
+  
+  If[layerAesthetics["fill"] =!= Null,
+    processedData = reconcileAesthetics[processedData, layerAesthetics["fill"], "fill"]
   ];
   
   If[layerAesthetics["size"] =!= Null,
@@ -166,6 +174,10 @@ resolveLayerAesthetics[panelData_, layerAesthetics_, globalOptions_] := Module[{
   
   If[layerAesthetics["group"] =!= Null,
     processedData = reconcileAesthetics[processedData, layerAesthetics["group"], "group"]
+  ];
+
+  If[layerAesthetics["lineAlpha"] =!= Null,
+    processedData = reconcileAesthetics[processedData, layerAesthetics["lineAlpha"], "lineAlpha"]
   ];
   
   processedData
