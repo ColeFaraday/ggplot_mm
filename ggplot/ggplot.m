@@ -315,6 +315,229 @@ extractMappedValues[data_, mapping_] :=
     True, Nothing
   ];
 
+ClearAll[discoverScales];
+discoverScales[dataset_, heldArgs_, options_] := Module[{
+  xMapping, yMapping, colorMapping, xValues, yValues, colorValues,
+  xScaleType, yScaleType, colorScaleType, scales
+},
+  (* Extract mappings from arguments *)
+  xMapping = First@Cases[heldArgs, ("x" -> x_) :> x, {0, Infinity}, 1];
+  yMapping = First@Cases[heldArgs, ("y" -> y_) :> y, {0, Infinity}, 1];
+  colorMapping = Lookup[options, "color", Null];
+  
+  (* Discover scale types by examining the full dataset *)
+  (* This is where your existing reconcileXScales/reconcileYScales logic goes *)
+  xScaleType = If[xMapping =!= $Failed, 
+    determineScaleType[extractMappedValues[dataset, xMapping], "x", heldArgs],
+    "identity"
+  ];
+  yScaleType = If[yMapping =!= $Failed,
+    determineScaleType[extractMappedValues[dataset, yMapping], "y", heldArgs], 
+    "identity"
+  ];
+  colorScaleType = determineColorScaleType[dataset, colorMapping];
+  
+  (* Create scale specifications (not yet applied to data) *)
+  scales = <|
+    "x" -> <|"type" -> xScaleType, "mapping" -> xMapping, "applied" -> False|>,
+    "y" -> <|"type" -> yScaleType, "mapping" -> yMapping, "applied" -> False|>,
+    "color" -> <|"type" -> colorScaleType, "mapping" -> colorMapping, "applied" -> False|>
+  |>;
+  
+  scales
+];
+
+(* STEP 3: Faceting - Modified to Pass Scales *)
+ClearAll[facetWithScales];
+facetWithScales[dataset_, facetSpec_, scales_] := Module[{facetResult, enrichedResult},
+  (* Your existing faceting logic *)
+  facetResult = If[facetSpec === facetIdentity[], 
+    <|"type" -> "identity", "panels" -> <|"single" -> dataset|>|>,
+    facetSpec[dataset]
+  ];
+  
+  (* Attach scale information to facet result *)
+  enrichedResult = Append[facetResult, "scales" -> scales];
+  
+  enrichedResult
+];
+
+(* STEP 4: Scale Application (NEW - MOST IMPORTANT) *)
+ClearAll[materializeAndApplyScales];
+materializeAndApplyScales[facetResult_, scales_] := Module[{
+  allPanelData, materializedScales, panelDataWithScales
+},
+  (* Collect all panel data to determine global scale domains *)
+  allPanelData = Flatten[Values[facetResult["panels"]], 1];
+  
+  (* Convert scale specifications into actual scale objects with domains *)
+  materializedScales = KeyValueMap[
+    Function[{aesthetic, scaleSpec},
+      If[scaleSpec["applied"] === False,
+        createMaterializedScale[aesthetic, scaleSpec, allPanelData],
+        scaleSpec
+      ]
+    ],
+    scales
+  ];
+  
+  (* Apply scales to each panel's data *)
+  panelDataWithScales = KeyValueMap[
+    Function[{panelKey, panelData},
+      applyScalesToPanelData[panelData, materializedScales]
+    ],
+    facetResult["panels"]
+  ];
+  
+  (* Return updated facet result with materialized scales *)
+  <|
+    "type" -> facetResult["type"],
+    "panels" -> panelDataWithScales, 
+    "panelOrder" -> facetResult["panelOrder"],
+    "scales" -> materializedScales
+  |>
+];
+
+(* Helper: Create materialized scale from specification *)
+ClearAll[createMaterializedScale];
+createMaterializedScale[aesthetic_, scaleSpec_, allData_] := Module[{
+  values, domain, range, transform, scaleObj
+},
+  Switch[aesthetic,
+    "x" | "y",
+    (* For positional scales, determine domain from all data *)
+    values = extractMappedValues[allData, scaleSpec["mapping"]];
+    domain = If[scaleSpec["type"] === "discrete",
+      Sort[DeleteDuplicates[values]],
+      MinMax[values]
+    ];
+    transform = createTransformFunction[scaleSpec["type"], domain];
+    
+    Scale[aesthetic, scaleSpec["type"], domain, Automatic,
+      "transform" -> transform,
+      "name" -> ToString[scaleSpec["mapping"]]
+    ],
+    
+    "color",
+    (* For aesthetic scales, create the full mapping *)
+    createColorScale[allData, scaleSpec["mapping"]],
+    
+    _,
+    (* Default identity scale *)
+    Scale[aesthetic, "identity", {}, {}, "name" -> ToString[aesthetic]]
+  ]
+];
+
+(* Helper: Apply materialized scales to panel data *)
+ClearAll[applyScalesToPanelData];
+applyScalesToPanelData[panelData_, materializedScales_] := Module[{processedData},
+  processedData = panelData;
+  
+  (* Apply aesthetic scales (color, size, etc.) to add _aes columns *)
+  KeyValueMap[
+    Function[{aesthetic, scale},
+      If[MemberQ[{"color", "size", "shape", "alpha"}, aesthetic],
+        processedData = addAestheticColumn[processedData, aesthetic, scale];
+      ]
+    ],
+    materializedScales
+  ];
+  
+  processedData
+];
+
+(* STEP 5: Stat→Geom Processing - Modified to Use Scales *)
+ClearAll[processPanelLayersWithScales];
+processPanelLayersWithScales[panelData_, layers_, scales_, options_] := Module[{
+  layerResults
+},
+  layerResults = Map[
+    Function[layer,
+      Module[{statResult, geomResult},
+        (* Stat processing - unchanged from your current approach *)
+        statResult = layer["stat"][Sequence @@ layer["statParams"], "data" -> panelData];
+        
+        (* Geom processing - now gets scale objects instead of scale functions *)
+        geomResult = layer["geom"][statResult,
+          Sequence @@ layer["geomParams"],
+          "scales" -> scales  (* Pass all scales instead of individual functions *)
+        ];
+        
+        geomResult
+      ]
+    ],
+    layers
+  ];
+  
+  layerResults
+];
+
+(* STEP 6: Legend Generation - Now Trivial *)
+ClearAll[generateLegendsFromScales];
+generateLegendsFromScales[scales_] := Module[{aestheticScales, legendGraphics},
+  (* Extract only scales that should have legends *)
+  aestheticScales = Select[scales, 
+    #["aesthetic"] ∈ {"color", "size", "shape", "alpha"} && 
+    #["type"] =!= "identity" && 
+    #["type"] =!= "constant" &
+  ];
+  
+  (* Generate legend for each aesthetic scale *)
+  legendGraphics = Map[createLegendFromScale, aestheticScales];
+  
+  (* Layout legends *)
+  If[Length[legendGraphics] > 0, 
+    Column[legendGraphics, Spacings -> 1],
+    Graphics[{}]
+  ]
+];
+
+(* =============================================================================
+   MODIFIED MAIN GGPLOT FUNCTION
+   ============================================================================= *)
+
+ClearAll[ggplotWithScalePipeline];
+ggplotWithScalePipeline[args___?argPatternQ] := Module[{
+  heldArgs, options, dataset, layers, facetSpec,
+  discoveredScales, facetResult, materializedFacetResult, 
+  panelGraphics, legends, finalGraphic
+},
+  (* Step 1: Extract arguments (unchanged) *)
+  heldArgs = Hold[args];
+  options = Cases[heldArgs, _Rule, 1];
+  dataset = Lookup[options, "data", {}];
+  layers = Cases[heldArgs, _geom, {0, Infinity}]; (* Your geom patterns *)
+  facetSpec = Cases[heldArgs, facetWrap[___], {0, Infinity}];
+  facetSpec = If[Length[facetSpec] > 0, First[facetSpec], facetIdentity[]];
+  
+  (* Step 2: Scale Discovery *)
+  discoveredScales = discoverScales[dataset, heldArgs, Association[options]];
+  
+  (* Step 3: Faceting with Scales *)
+  facetResult = facetWithScales[dataset, facetSpec, discoveredScales];
+  
+  (* Step 4: Scale Materialization and Application *)
+  materializedFacetResult = materializeAndApplyScales[facetResult, discoveredScales];
+  
+  (* Step 5: Layer Processing with Scales *)
+  panelGraphics = KeyValueMap[
+    Function[{panelKey, panelData},
+      processPanelLayersWithScales[panelData, layers, 
+        materializedFacetResult["scales"], options]
+    ],
+    materializedFacetResult["panels"]
+  ];
+  
+  (* Step 6: Legend Generation *)
+  legends = generateLegendsFromScales[materializedFacetResult["scales"]];
+  
+  (* Step 7: Layout (unchanged from your current approach) *)
+  finalGraphic = layoutFacetedPlot[panelGraphics, legends, 
+    materializedFacetResult, options];
+  
+  finalGraphic
+];
+
 End[];
 
 EndPackage[];

@@ -77,9 +77,30 @@ gridLines2::usage            = "TBD";
 majorGridLineStyle2::usage  = "TBD";
 minorGridLineStyle2::usage  = "TBD";
 
+(* Scale Pipeline Functions *)
+discoverScales::usage = "TBD";
+facetWithScales::usage = "TBD";
+materializeAndApplyScales::usage = "TBD";
+createMaterializedScale::usage = "TBD";
+applyScalesToPanelData::usage = "TBD";
+processPanelLayersWithScales::usage = "TBD";
+generateLegendsFromScales::usage = "TBD";
+ggplotWithScalePipeline::usage = "TBD";
+
+(* Scale Helper Functions *)
+determineScaleType::usage = "TBD";
+determineColorScaleType::usage = "TBD";
+createTransformFunction::usage = "TBD";
+createColorScale::usage = "TBD";
+addAestheticColumn::usage = "TBD";
+createLegendFromScale::usage = "TBD";
+Scale::usage = "TBD";
+
 extractMappedValues::usage = "TBD";
 
 reconcileAesthetics::usage = "TBD";
+
+
 
 
 Options[gridLines2] = Options[ticks2];
