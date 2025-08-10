@@ -94,7 +94,7 @@ createTransformFunction::usage = "TBD";
 createColorScale::usage = "TBD";
 addAestheticColumn::usage = "TBD";
 createLegendFromScale::usage = "TBD";
-Scale::usage = "TBD";
+ggplotScale::usage = "TBD";
 
 extractMappedValues::usage = "TBD";
 

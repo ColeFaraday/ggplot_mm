@@ -24,18 +24,53 @@ geomPoint[opts:OptionsPattern[] /; Count[Hold[opts], ("data" -> _), {0, Infinity
   |>
 ];
 
-Options[geomPointRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "size" -> Null, "alpha" -> Null, "shape" -> Null, "xScaleFunc" -> Function[Identity[#]], "yScaleFunc" -> Function[Identity[#]]};
-geomPointRender[statData_, opts : OptionsPattern[]] := Module[{newDataset, colorFunc, sizeFunc, alphaFunc, shapeFunc, output},
-  (* Ensure X/Y has been given *)
+Options[geomPointRender] = {"data" -> {}, "x" -> Null, "y" -> Null, "color" -> Null, "size" -> Null, "alpha" -> Null, "shape" -> Null, "scales" -> <||>};
+geomPointRender[statData_, opts : OptionsPattern[]] := Module[{newDataset, colorFunc, sizeFunc, alphaFunc, shapeFunc, output, scales, xMapping, yMapping, xScaleFunc, yScaleFunc},
+  (* Get scales and mappings *)
+  scales = OptionValue["scales"];
+  xMapping = OptionValue["x"];
+  yMapping = OptionValue["y"];
+  
+  (* Extract scale functions for positional mapping *)
+  (* Handle both Association format {"x" -> scale, "y" -> scale} and List format {scale1, scale2, scale3} *)
+  xScale = Which[
+    AssociationQ[scales] && KeyExistsQ[scales, "x"], scales["x"],
+    ListQ[scales], SelectFirst[scales, #["aesthetic"] === "x" &, <||>],
+    True, <||>
+  ];
+  yScale = Which[
+    AssociationQ[scales] && KeyExistsQ[scales, "y"], scales["y"],
+    ListQ[scales], SelectFirst[scales, #["aesthetic"] === "y" &, <||>],
+    True, <||>
+  ];
+  
+  xScaleFunc = If[KeyExistsQ[xScale, "transform"],
+    xScale["transform"],
+    Function[#]  (* Default identity *)
+  ];
+  yScaleFunc = If[KeyExistsQ[yScale, "transform"],
+    yScale["transform"],
+    Function[#]  (* Default identity *)
+  ];
+
+  Print["stat:", statData];
 
   (*Grab the point data and for each Point apply the correct aesthetic*)
   output = statData // Map[Function[row,
-    Module[{shapeObj, colorDir, alphaDir, sizeDir, pos, processedShape},
-      shapeObj = row["shape_aes"];
-      colorDir = row["color_aes"];
-      alphaDir = row["alpha_aes"];
-      sizeDir = row["size_aes"];
-      pos = {OptionValue["xScaleFunc"][extractMappedValues[{row}, OptionValue["x"]][[1]]], OptionValue["yScaleFunc"][extractMappedValues[{row}, OptionValue["y"]][[1]]]};
+    Module[{shapeObj, colorDir, alphaDir, sizeDir, pos, processedShape, xValue, yValue},
+    Print[row];
+      (* Get aesthetic values from _aes columns, with defaults if missing *)
+      shapeObj = Lookup[row, "shape_aes", "\[FilledCircle]"];
+      colorDir = Lookup[row, "color_aes", Black];
+      alphaDir = Lookup[row, "alpha_aes", Opacity[1]];
+      sizeDir = Lookup[row, "size_aes", 12];
+
+      Print[colorDir];
+      
+      (* Get raw x/y values and apply scale transformations *)
+      xValue = If[StringQ[xMapping], row[xMapping], xMapping[row]];
+      yValue = If[StringQ[yMapping], row[yMapping], yMapping[row]];
+      pos = {xScaleFunc[xValue], yScaleFunc[yValue]};
 
       (* Check if shape has placeholder variables (from FilledMarkers[] or similar) *)
       If[StringContainsQ[ToString[shapeObj], "ggplotColorPlaceholder"],
@@ -55,7 +90,10 @@ geomPointRender[statData_, opts : OptionsPattern[]] := Module[{newDataset, color
   (* Grouping data but doing a GeometricTransformation on similar Inset values to speed up the plotting once inside Graphics *)
   output = output // GroupBy[Function[{#[[1]], #[[2]], Inset[#[[3, 1]], {0, 0}]}] -> Function[#[[3, 2]]]] // Normal // Map[{#[[1, 1]], #[[1, 2]], GeometricTransformation[#[[1, 3]], List /@ #[[2]]]} &];
 
+  Print[output];
+
   output
+
 
 ];
 

@@ -20,7 +20,7 @@ statIdentity[opts : OptionsPattern[]] := Module[{
   dataset, processedData, groupedData
 },
   dataset = OptionValue["data"];
-  
+
   (* Ensure X/Y has been given *)
   If[OptionValue["x"] === Null || OptionValue["y"] === Null, 
     Message[ggplot::xOrYNotGiven]; 

@@ -352,7 +352,9 @@ ClearAll[facetWithScales];
 facetWithScales[dataset_, facetSpec_, scales_] := Module[{facetResult, enrichedResult},
   (* Your existing faceting logic *)
   facetResult = If[facetSpec === facetIdentity[], 
-    <|"type" -> "identity", "panels" -> <|"single" -> dataset|>|>,
+    <|"type" -> "identity", 
+      "panels" -> <|"single" -> dataset|>,
+      "panelOrder" -> {"single"}|>,
     facetSpec[dataset]
   ];
   
@@ -380,7 +382,7 @@ materializeAndApplyScales[facetResult_, scales_] := Module[{
     ],
     scales
   ];
-  
+
   (* Apply scales to each panel's data *)
   panelDataWithScales = KeyValueMap[
     Function[{panelKey, panelData},
@@ -413,7 +415,7 @@ createMaterializedScale[aesthetic_, scaleSpec_, allData_] := Module[{
     ];
     transform = createTransformFunction[scaleSpec["type"], domain];
     
-    Scale[aesthetic, scaleSpec["type"], domain, Automatic,
+    ggplotScale[aesthetic, scaleSpec["type"], domain, Automatic,
       "transform" -> transform,
       "name" -> ToString[scaleSpec["mapping"]]
     ],
@@ -424,7 +426,7 @@ createMaterializedScale[aesthetic_, scaleSpec_, allData_] := Module[{
     
     _,
     (* Default identity scale *)
-    Scale[aesthetic, "identity", {}, {}, "name" -> ToString[aesthetic]]
+    ggplotScale[aesthetic, "identity", {}, {}, "name" -> ToString[aesthetic]]
   ]
 ];
 
@@ -434,14 +436,16 @@ applyScalesToPanelData[panelData_, materializedScales_] := Module[{processedData
   processedData = panelData;
   
   (* Apply aesthetic scales (color, size, etc.) to add _aes columns *)
-  KeyValueMap[
-    Function[{aesthetic, scale},
-      If[MemberQ[{"color", "size", "shape", "alpha"}, aesthetic],
-        processedData = addAestheticColumn[processedData, aesthetic, scale];
+  Map[
+    Function[row,
+      If[MemberQ[{"color", "size", "shape", "alpha"}, row[["aesthetic"]]],
+        processedData = addAestheticColumn[processedData, row[["aesthetic"]], row];
       ]
     ],
     materializedScales
   ];
+
+  Print[processedData];
   
   processedData
 ];
@@ -451,19 +455,28 @@ ClearAll[processPanelLayersWithScales];
 processPanelLayersWithScales[panelData_, layers_, scales_, options_] := Module[{
   layerResults
 },
+  Print[opts];
   layerResults = Map[
-    Function[layer,
-      Module[{statResult, geomResult},
-        (* Stat processing - unchanged from your current approach *)
-        statResult = layer["stat"][Sequence @@ layer["statParams"], "data" -> panelData];
+    Function[layerCall,
+      Module[{layerObj, statResult, geomResult},
+        (* Convert the layer call to a layer object by adding data *)
+        layerObj = layerCall /. (head_[opts___]) :> head["data" -> panelData, Join[FilterRules[{opts}, Options[head]], options]];
         
-        (* Geom processing - now gets scale objects instead of scale functions *)
-        geomResult = layer["geom"][statResult,
-          Sequence @@ layer["geomParams"],
-          "scales" -> scales  (* Pass all scales instead of individual functions *)
-        ];
-        
-        geomResult
+        (* Now layerObj should match the geomPoint pattern and return a layer object *)
+        If[Head[layerObj] === Association,
+          (* Stat processing *)
+          statResult = layerObj["stat"][Sequence @@ layerObj["statParams"]];
+          
+          (* Geom processing - now gets scale objects instead of scale functions *)
+          geomResult = layerObj["geom"][#,
+            Sequence @@ layerObj["geomParams"],
+            "scales" -> scales
+          ] &/@ statResult;
+          
+          geomResult,
+          (* If layer object creation failed, return empty graphics *)
+          Graphics[{}]
+        ]
       ]
     ],
     layers
@@ -506,7 +519,14 @@ ggplotWithScalePipeline[args___?argPatternQ] := Module[{
   heldArgs = Hold[args];
   options = Cases[heldArgs, _Rule, 1];
   dataset = Lookup[options, "data", {}];
-  layers = Cases[heldArgs, _geom, {0, Infinity}]; (* Your geom patterns *)
+  layers = Cases[heldArgs, 
+    (geomPoint[opts___] | geomLine[opts___] | geomPath[opts___] | geomSmooth[opts___] | 
+     geomVLine[opts___] | geomHLine[opts___] | geomParityLine[opts___] | 
+     geomHistogram[opts___] | geomBar[opts___] | geomBoxes[opts___] | 
+     geomBand[opts___] | geomDensity2DFilled[opts___] | geomConvexHull[opts___] | 
+     geomText[opts___] | geomDensity2D[opts___]), 
+    {0, Infinity}
+  ];
   facetSpec = Cases[heldArgs, facetWrap[___], {0, Infinity}];
   facetSpec = If[Length[facetSpec] > 0, First[facetSpec], facetIdentity[]];
   
@@ -515,14 +535,16 @@ ggplotWithScalePipeline[args___?argPatternQ] := Module[{
   
   (* Step 3: Faceting with Scales *)
   facetResult = facetWithScales[dataset, facetSpec, discoveredScales];
-  
+
   (* Step 4: Scale Materialization and Application *)
   materializedFacetResult = materializeAndApplyScales[facetResult, discoveredScales];
+
+  Print[materializedFacetResult];
   
   (* Step 5: Layer Processing with Scales *)
-  panelGraphics = KeyValueMap[
-    Function[{panelKey, panelData},
-      processPanelLayersWithScales[panelData, layers, 
+  panelGraphics = Map[
+    Function[{row},
+      processPanelLayersWithScales[row, layers, 
         materializedFacetResult["scales"], options]
     ],
     materializedFacetResult["panels"]
@@ -530,14 +552,113 @@ ggplotWithScalePipeline[args___?argPatternQ] := Module[{
   
   (* Step 6: Legend Generation *)
   legends = generateLegendsFromScales[materializedFacetResult["scales"]];
+
+	Print["legends"];
+  Print[legends];
   
   (* Step 7: Layout (unchanged from your current approach) *)
   finalGraphic = layoutFacetedPlot[panelGraphics, legends, 
     materializedFacetResult, options];
-  
+
   finalGraphic
 ];
 
+(* Simple implementations of missing helper functions for testing *)
+ClearAll[determineScaleType];
+determineScaleType[values_, aesthetic_, heldArgs_] := Module[{},
+  (* Simple logic: if all values are numeric, it's continuous, otherwise discrete *)
+  If[AllTrue[values, NumericQ], "continuous", "discrete"]
+];
+
+ClearAll[determineColorScaleType];
+determineColorScaleType[dataset_, colorMapping_] := Module[{},
+  If[colorMapping === Null, "identity", "discrete"]
+];
+
+ClearAll[createTransformFunction];
+createTransformFunction[scaleType_, domain_] := Module[{},
+  Switch[scaleType,
+    "continuous", Function[#],
+    "discrete", Function[Position[domain, #][[1, 1]]],
+    _, Function[#]
+  ]
+];
+
+createTransformFunction[scale_] := Module[{scaleType, domain, range},
+  scaleType = scale["type"];
+  domain = scale["domain"];
+  range = scale["range"];
+  
+  Switch[scaleType,
+    "continuous", Function[#],
+    "discrete", Function[If[MemberQ[domain, #], 
+      range[[Position[domain, #][[1, 1]]]], 
+      #]],
+    "identity", Function[#],
+    _, Function[#]
+  ]
+];
+
+ClearAll[createColorScale];
+createColorScale[allData_, colorMapping_] := Module[{values, uniqueValues, colors},
+  If[colorMapping === Null,
+    ggplotScale["color", "identity", {}, {}, "mapping" -> Null],
+    values = extractMappedValues[allData, colorMapping];
+    uniqueValues = DeleteDuplicates[values];
+    colors = ColorData[97] /@ Range[Length[uniqueValues]];
+    ggplotScale["color", "discrete", uniqueValues, colors, 
+      "mapping" -> colorMapping, "name" -> ToString[colorMapping]]
+  ]
+];
+
+ClearAll[addAestheticColumn];
+addAestheticColumn[processedData_, aesthetic_, scale_] := Module[{mapping, transformFunction},
+  mapping = scale["mapping"];
+  transformFunction = createTransformFunction[scale];
+  
+  Map[Function[row,
+    Module[{rawValue, transformedValue},
+      rawValue = If[mapping === Null, 
+        Null,
+        If[StringQ[mapping], 
+          row[mapping], 
+          mapping[row]
+        ]
+      ];
+      transformedValue = If[rawValue === Null, 
+        If[aesthetic == "color", Black, 1],
+        transformFunction[rawValue]
+      ];
+      Append[row, aesthetic <> "_aes" -> transformedValue]
+    ]
+  ], processedData]
+];
+
+ClearAll[createLegendFromScale];
+createLegendFromScale[scale_] := Module[{},
+  If[scale["type"] === "discrete" && KeyExistsQ[scale, "domain"],
+    SwatchLegend[scale["range"], scale["domain"]],
+    None
+  ]
+];
+
+ClearAll[ggplotScale];
+ggplotScale[aesthetic_, type_, domain_, range_, opts___] := <|
+  "aesthetic" -> aesthetic,
+  "type" -> type, 
+  "domain" -> domain,
+  "range" -> range,
+  opts
+|>;
+
+ClearAll[layoutFacetedPlot];
+layoutFacetedPlot[panelGraphics_, legends_, facetResult_, options_] := Module[{},
+  (* Simple layout - just return the first panel graphic for testing *)
+  First[panelGraphics, Graphics[{}]]
+];
+
+ClearAll[facetIdentity];
+facetIdentity[] := Identity;
 End[];
 
 EndPackage[];
