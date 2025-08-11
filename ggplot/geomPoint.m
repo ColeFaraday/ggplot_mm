@@ -53,19 +53,16 @@ geomPointRender[statData_, opts : OptionsPattern[]] := Module[{newDataset, color
     Function[#]  (* Default identity *)
   ];
 
-  Print["stat:", statData];
 
   (*Grab the point data and for each Point apply the correct aesthetic*)
   output = statData // Map[Function[row,
     Module[{shapeObj, colorDir, alphaDir, sizeDir, pos, processedShape, xValue, yValue},
-    Print[row];
       (* Get aesthetic values from _aes columns, with defaults if missing *)
       shapeObj = Lookup[row, "shape_aes", "\[FilledCircle]"];
       colorDir = Lookup[row, "color_aes", Black];
       alphaDir = Lookup[row, "alpha_aes", Opacity[1]];
       sizeDir = Lookup[row, "size_aes", 12];
 
-      Print[colorDir];
       
       (* Get raw x/y values and apply scale transformations *)
       xValue = If[StringQ[xMapping], row[xMapping], xMapping[row]];
@@ -90,7 +87,6 @@ geomPointRender[statData_, opts : OptionsPattern[]] := Module[{newDataset, color
   (* Grouping data but doing a GeometricTransformation on similar Inset values to speed up the plotting once inside Graphics *)
   output = output // GroupBy[Function[{#[[1]], #[[2]], Inset[#[[3, 1]], {0, 0}]}] -> Function[#[[3, 2]]]] // Normal // Map[{#[[1, 1]], #[[1, 2]], GeometricTransformation[#[[1, 3]], List /@ #[[2]]]} &];
 
-  Print[output];
 
   output
 

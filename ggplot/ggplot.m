@@ -445,7 +445,6 @@ applyScalesToPanelData[panelData_, materializedScales_] := Module[{processedData
     materializedScales
   ];
 
-  Print[processedData];
   
   processedData
 ];
@@ -455,7 +454,6 @@ ClearAll[processPanelLayersWithScales];
 processPanelLayersWithScales[panelData_, layers_, scales_, options_] := Module[{
   layerResults
 },
-  Print[opts];
   layerResults = Map[
     Function[layerCall,
       Module[{layerObj, statResult, geomResult},
@@ -487,13 +485,18 @@ processPanelLayersWithScales[panelData_, layers_, scales_, options_] := Module[{
 
 (* STEP 6: Legend Generation - Now Trivial *)
 ClearAll[generateLegendsFromScales];
-generateLegendsFromScales[scales_] := Module[{aestheticScales, legendGraphics},
+generateLegendsFromScales[scales_, layers_] := Module[{aestheticScales, legendGraphics},
+  Print["Its legend time!!!"];
+  Print[layers];
+  Print[Head/@layers];
   (* Extract only scales that should have legends *)
   aestheticScales = Select[scales, 
-    #["aesthetic"] ∈ {"color", "size", "shape", "alpha"} && 
-    #["type"] =!= "identity" && 
-    #["type"] =!= "constant" &
+    MemberQ[{"color", "size", "shape", "alpha"}, #["aesthetic"]] && 
+    #["type"] != "identity" && 
+    #["type"] != "constant" &
   ];
+
+  Print[aestheticScales];
   
   (* Generate legend for each aesthetic scale *)
   legendGraphics = Map[createLegendFromScale, aestheticScales];
@@ -539,8 +542,6 @@ ggplotWithScalePipeline[args___?argPatternQ] := Module[{
   (* Step 4: Scale Materialization and Application *)
   materializedFacetResult = materializeAndApplyScales[facetResult, discoveredScales];
 
-  Print[materializedFacetResult];
-  
   (* Step 5: Layer Processing with Scales *)
   panelGraphics = Map[
     Function[{row},
@@ -551,7 +552,7 @@ ggplotWithScalePipeline[args___?argPatternQ] := Module[{
   ];
   
   (* Step 6: Legend Generation *)
-  legends = generateLegendsFromScales[materializedFacetResult["scales"]];
+  legends = generateLegendsFromScales[materializedFacetResult["scales"], layers];
 
 	Print["legends"];
   Print[legends];
@@ -654,7 +655,31 @@ ggplotScale[aesthetic_, type_, domain_, range_, opts___] := <|
 ClearAll[layoutFacetedPlot];
 layoutFacetedPlot[panelGraphics_, legends_, facetResult_, options_] := Module[{},
   (* Simple layout - just return the first panel graphic for testing *)
-  First[panelGraphics, Graphics[{}]]
+  Print[Flatten[Values/@panelGraphics]];
+  Graphics[
+    Flatten[Values/@panelGraphics],
+    PlotRange -> Lookup[options, PlotRange, All],
+    PlotLegends->legends,
+    FrameLabel -> Lookup[options, FrameLabel, Automatic],
+    
+    (* Apply user-specified options that should override defaults *)
+    Frame -> Lookup[options, Frame, Frame /. panelOptions /. Frame -> True],
+    FrameStyle -> Lookup[options, FrameStyle, FrameStyle /. panelOptions /. FrameStyle -> Automatic],
+    FrameTicksStyle -> Lookup[options, FrameTicksStyle, FrameTicksStyle /. panelOptions /. FrameTicksStyle -> Automatic],
+    LabelStyle -> Lookup[options, LabelStyle, LabelStyle /. panelOptions /. LabelStyle -> Automatic],
+    PlotRangeClipping -> Lookup[options, PlotRangeClipping, PlotRangeClipping /. panelOptions /. PlotRangeClipping -> True],
+    AspectRatio -> Lookup[options, AspectRatio, AspectRatio /. panelOptions /. AspectRatio -> 7/10],
+    Background -> Lookup[options, Background, Background /. panelOptions /. Background -> None],
+    GridLines -> Lookup[options, GridLines, GridLines /. panelOptions /. GridLines -> None],
+    GridLinesStyle -> Lookup[options, GridLinesStyle, GridLinesStyle /. panelOptions /. GridLinesStyle -> Automatic],
+    
+    (* The key fix: allow user to override ImageSize *)
+    ImageSize -> Lookup[options, ImageSize, ImageSize /. panelOptions /. ImageSize -> Automatic],
+    ImageMargins -> Lookup[options, ImageMargins, ImageMargins /. panelOptions /. ImageMargins -> Automatic],
+    Prolog -> Lookup[options, Prolog, Prolog /. panelOptions /. Prolog -> {}],
+    Method -> Lookup[options, Method, Method /. panelOptions /. Method -> Automatic],
+    Axes -> Lookup[options, Axes, Axes /. panelOptions /. Axes -> False]
+  ]
 ];
 
 ClearAll[facetIdentity];
