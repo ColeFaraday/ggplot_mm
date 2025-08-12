@@ -98,8 +98,8 @@ statSmooth[opts : OptionsPattern[]] := Module[{
             Module[{baseData, aestheticKeys, aestheticData},
               (* Base data with coordinates *)
               baseData = Association[
-                OptionValue["x"] -> dataPoint[[1]], (* x_smooth *)
-                OptionValue["y"] -> dataPoint[[2]], (* y_predicted *)
+                "x" -> dataPoint[[1]], (* x_smooth *)
+                "y" -> dataPoint[[2]], (* y_predicted *)
                 "ymin" -> dataPoint[[3]], (* ymin_ci *)
                 "ymax" -> dataPoint[[4]] (* ymax_ci *)
               ];
